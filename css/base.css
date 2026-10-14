@@ -202,6 +202,8 @@ button.chip{cursor:pointer;}
 .visor img{max-width:100%;max-height:88vh;border-radius:8px;}
 .visor-pie{color:var(--muted);font-size:12px;margin-top:10px;text-align:center;}
 
+.aviso-version{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:250;display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--pink);color:var(--text);border-radius:12px;padding:10px 14px;font-size:12px;font-weight:600;box-shadow:0 8px 30px #000a;max-width:92vw;}
+
 /* ---------- ACCESO ---------- */
 .acceso{min-height:80vh;display:flex;align-items:center;justify-content:center;}
 .acceso-caja{width:min(420px,100%);padding:28px;}

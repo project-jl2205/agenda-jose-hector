@@ -269,6 +269,28 @@ async function montarVista(nombre, params) {
   window.scrollTo(0, 0);
 }
 
+// ---- aviso de versión nueva (publicar_web.py escribe version.json en cada publicación) ----------
+async function leerVersion() {
+  try {
+    const r = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+    return r.ok ? (await r.json()).version || null : null;
+  } catch { return null; }
+}
+async function vigilarVersion() {
+  const cargada = await leerVersion();
+  if (!cargada) return;   // en local o sin publicar: no hay nada que vigilar
+  const comprobar = async () => {
+    const v = await leerVersion();
+    if (v && v !== cargada && !document.getElementById('aviso-version')) {
+      document.body.append(el('div', { id: 'aviso-version', class: 'aviso-version', role: 'status' },
+        el('span', {}, 'Hay una versión nueva de la agenda'),
+        el('button', { class: 'btn btn-peq btn-primario', onclick: () => location.reload() }, 'RECARGAR')));
+    }
+  };
+  setInterval(comprobar, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) comprobar(); });
+}
+
 // ---- errores globales y PWA ---------------------------------------------------------------------
 window.addEventListener('unhandledrejection', ev => ui.error(ev.reason));
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
@@ -276,3 +298,4 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 
 arrancar();
+vigilarVersion();

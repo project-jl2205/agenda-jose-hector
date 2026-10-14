@@ -1,6 +1,6 @@
 // Service worker: guarda el esqueleto de la app para que abra rápido e instalable.
 // Nunca guarda datos de Supabase (eso va siempre por la red, con su sesión).
-const VERSION = 'agenda-jh-v1';
+const VERSION = 'agenda-jh-v2';
 const ESQUELETO = [
   './', './index.html', './manifest.webmanifest', './css/base.css', './css/vistas.css',
   './js/app.js', './js/config.js', './js/db.js', './js/demo.js', './js/store.js', './js/fechas.js',
@@ -26,7 +26,8 @@ self.addEventListener('fetch', ev => {
   if (url.hostname.endsWith('supabase.co') || url.hostname.endsWith('supabase.in')) return;   // datos: siempre red
   if (url.origin === location.origin) {
     // propio: primero la red (cambios al instante); sin red, lo guardado
-    ev.respondWith(fetch(req).then(r => {
+    // no-cache: pregunta siempre al servidor si hay versión nueva (GitHub hace que el navegador guarde 10 min)
+    ev.respondWith(fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then(r => {
       if (r.ok) { const copia = r.clone(); caches.open(VERSION).then(c => c.put(req, copia)); }
       return r;
     }).catch(() => caches.match(req).then(r => r || caches.match('./index.html'))));
