@@ -1,5 +1,5 @@
 // SEMANA — el panel «AGENDA JOSE · HÉCTOR — Esta semana», compartido y en vivo.
-// Banner con la semana ISO, resumen por persona, herramientas IA, gráficos, grupos con tareas
+// Banner con la semana ISO, resumen por persona, gráficos, grupos con tareas
 // (marcar = quién y cuándo), papelera con deshacer, notas de la semana y arrastre de pendientes.
 
 import { el, icono, modal, campo, selector, toast, error, confirmar, pedirTexto, avatar, progreso, debounce, pct, reemplazar, pildoraPrioridad } from '../ui.js';
@@ -31,7 +31,6 @@ export function montar(cont, ctx) {
   // ---- estructura fija (las notas y los gráficos no se re-crean) ----
   const banner = el('div', { class: 'fire-banner' });
   const resumen = el('div', { class: 'g4' });
-  const herramientas = el('div', { class: 'g4' });
   const lienzoDonut = el('canvas');
   const lienzoBarras = el('canvas');
   const lista = el('div', { class: 'obj-wrap' });
@@ -40,8 +39,6 @@ export function montar(cont, ctx) {
   cont.append(
     banner,
     el('div', { class: 'sec' }, el('span', {}, `Resumen — Semana ${F.numeroSemana(semana)}`)), resumen,
-    el('div', { class: 'sec' }, el('span', {}, 'Herramientas IA — Estado y Presupuesto'),
-      el('div', { class: 'sec-extra' }, el('button', { class: 'btn btn-peq', onclick: () => editarHerramienta(null) }, '+ HERRAMIENTA'))), herramientas,
     el('div', { class: 'sec' }, el('span', {}, 'Análisis visual')),
     el('div', { class: 'g2' },
       el('div', { class: 'card' }, el('div', { class: 'card-lbl' }, 'Distribución de progreso por eje'), el('div', { class: 'chart-wrap' }, lienzoDonut)),
@@ -89,46 +86,6 @@ export function montar(cont, ctx) {
     reemplazar(resumen, ...porPersona,
       tarjeta('ac-g', 'Tareas totales', filas.length, 'var(--green)', `${grupos.length} grupo${grupos.length === 1 ? '' : 's'}`),
       tarjeta('ac-p', 'Progreso semanal', `${pct(hechas, filas.length)}%`, 'var(--pink)', `${hechas} de ${filas.length} tareas`));
-  }
-
-  // ---- herramientas IA ----
-  function pintarHerramientas() {
-    const hs = store.vivas('herramientas').sort((a, b) => a.orden - b.orden);
-    reemplazar(herramientas, ...hs.map(h => {
-      const activo = /ACTIV|GRATIS/i.test(h.estado);
-      const uso = h.presupuesto > 0 ? Math.min(100, Math.round((h.gastado / h.presupuesto) * 100)) : 0;
-      return el('div', { class: 'card clicable', title: 'Clic para editar', onclick: () => editarHerramienta(h) },
-        el('div', { class: 'tool-hdr' }, el('div', { class: 'tool-dot', style: { background: h.color } }),
-          el('div', {}, el('div', { class: 'tool-name' }, h.nombre), el('div', { class: 'tool-cat' }, h.categoria || ''))),
-        el('div', { class: 'tool-row' }, el('span', {}, 'Gastado'), el('span', {}, `${h.moneda}${num(h.gastado)} / ${h.moneda}${num(h.presupuesto)}`)),
-        progreso(uso, h.color),
-        el('span', { class: `sts ${activo ? 'sts-a' : 'sts-p'}` }, `${activo ? '●' : '○'} ${h.estado}`));
-    }));
-  }
-  const num = n => Number(n || 0).toLocaleString('es-ES', { maximumFractionDigits: 2 });
-
-  function editarHerramienta(h) {
-    const nombre = el('input', { value: h?.nombre || '' });
-    const categoria = el('input', { value: h?.categoria || '', placeholder: 'Desarrollo / IA Principal' });
-    const gastado = el('input', { type: 'number', step: '0.01', value: h?.gastado ?? 0 });
-    const presupuesto = el('input', { type: 'number', step: '0.01', value: h?.presupuesto ?? 0 });
-    const estado = el('input', { value: h?.estado || 'ACTIVO', placeholder: 'ACTIVO, GRATIS, PENDIENTE SETUP…' });
-    const color = el('input', { type: 'color', value: h?.color || '#6366f1' });
-    const botones = [];
-    if (h) botones.push({ texto: 'A la papelera', tipo: 'peligro', accion: async () => {
-      await store.papelera('herramientas', h.id);
-      toast('Herramienta a la papelera', 'ok', { accion: () => store.restaurar('herramientas', h.id).catch(error) });
-    } });
-    botones.push({ texto: 'Cancelar' }, { texto: 'GUARDAR', tipo: 'primario', accion: async () => {
-      if (!nombre.value.trim()) { toast('Pon un nombre.', 'err'); return false; }
-      const datos = { nombre: nombre.value.trim(), categoria: categoria.value.trim() || null, gastado: +gastado.value || 0, presupuesto: +presupuesto.value || 0, estado: estado.value.trim().toUpperCase() || 'ACTIVO', color: color.value };
-      if (h) await store.actualizar('herramientas', { id: h.id }, datos);
-      else await store.insertar('herramientas', { ...datos, orden: store.vivas('herramientas').length });
-    } });
-    modal({ titulo: h ? 'EDITAR HERRAMIENTA' : 'NUEVA HERRAMIENTA', ancho: 460, botones, cuerpo: el('div', {},
-      campo('Nombre', nombre), campo('Categoría', categoria),
-      el('div', { class: 'fila-campos' }, campo('Gastado (€)', gastado), campo('Presupuesto (€)', presupuesto)),
-      el('div', { class: 'fila-campos' }, campo('Estado', estado), campo('Color', color))) });
   }
 
   // ---- gráficos (Chart.js, como el panel) ----
@@ -341,9 +298,9 @@ export function montar(cont, ctx) {
 
   // ---- pintar todo ----
   function pintar() {
-    pintarBanner(); pintarResumen(); pintarHerramientas(); pintarGraficos(); pintarGrupos(); pintarNotas();
+    pintarBanner(); pintarResumen(); pintarGraficos(); pintarGrupos(); pintarNotas();
   }
-  const quitar = store.on(['grupos', 'tareas', 'tareas_hechas', 'notas_semana', 'herramientas', 'perfiles'], pintar);
+  const quitar = store.on(['grupos', 'tareas', 'tareas_hechas', 'notas_semana', 'perfiles'], pintar);
   pintar();
   return () => { quitar(); donut?.destroy(); barras?.destroy(); };
 }

@@ -64,7 +64,8 @@
 .eje::before{content:'';position:absolute;top:0;bottom:0;width:2px;background:var(--border);}
 .punto{position:relative;margin-top:14px;width:12px;height:12px;border-radius:50%;background:var(--c);box-shadow:0 0 0 3px var(--bg);}
 .punto.rombo{border-radius:2px;transform:rotate(45deg);}
-.fila-linea>.tarea-dia,.fila-linea>.jornada{position:relative;height:26px;display:flex;align-items:center;margin-left:52px;}
+.fila-linea>.tarea-dia{margin:6px 0;}
+.jornada{position:relative;height:26px;display:flex;align-items:center;margin-left:52px;}
 .jornada::before{content:'';position:absolute;left:0;right:0;border-top:1px dashed #f59e0b80;}
 .jornada span{position:relative;background:var(--bg);color:var(--amber);font-size:9px;font-weight:800;letter-spacing:1px;padding:2px 8px;border:1px solid #f59e0b60;border-radius:8px;margin-left:4px;}
 .evento-linea{margin:6px 0;}

@@ -135,6 +135,7 @@ function formulario(cont, ctx, id) {
   const ahora = new Date(Math.ceil(Date.now() / 300000) * 300000);
   const t0 = s0 ? F.instanteAMadrid(s0.t0) : F.instanteAMadrid(ahora);
   const est = {
+    dir: s0?.direccion || null,   // 'largo' (compra) | 'corto' (venta)
     tf: s0?.temporalidad || '4h',
     modo: s0?.modo || 'tiempo',
     pasos: structuredClone(s0?.condiciones?.pasos || []),
@@ -158,6 +159,7 @@ function formulario(cont, ctx, id) {
   const resumenNiveles = el('div', { class: 'resumen-niveles' });
   const fecha = el('input', { type: 'date', value: t0.dia });
   const hora = el('input', { type: 'time', value: t0.hora });
+  const dirCaja = el('div', { class: 'segmentos' });
   const tfCaja = el('div', { class: 'segmentos' });
   const modoCaja = el('div', { class: 'segmentos' });
   const modoAyuda = el('div', { class: 'ayuda' });
@@ -172,16 +174,21 @@ function formulario(cont, ctx, id) {
   const capturasCaja = el('div', { class: 'capturas-previa' });
   const fichero = el('input', { type: 'file', accept: 'image/*', multiple: true, class: 'oculto' });
 
-  const direccion = () => (+tp.value > +entrada.value ? 'largo' : 'corto');
+  function pintarDir() {
+    reemplazar(dirCaja,
+      el('button', { type: 'button', class: est.dir === 'largo' ? 'activo' : '', onclick: () => { est.dir = 'largo'; pintarDir(); pintarNiveles(); } }, '▲ COMPRA'),
+      el('button', { type: 'button', class: est.dir === 'corto' ? 'activo' : '', onclick: () => { est.dir = 'corto'; pintarDir(); pintarNiveles(); } }, '▼ VENTA'));
+  }
   function pintarNiveles() {
     const e = +entrada.value, s = +sl.value, t = +tp.value;
-    if (!entrada.value || !sl.value || !tp.value) { reemplazar(resumenNiveles, el('span', { class: 'muted' }, 'Pon entrada, SL y TP: la dirección sale sola.')); return; }
-    const dir = direccion();
+    const dir = est.dir;
+    if (!dir) { reemplazar(resumenNiveles, el('span', { class: 'muted' }, 'Elige si es compra o venta.')); return; }
+    if (!entrada.value || !sl.value || !tp.value) { reemplazar(resumenNiveles, el('span', { class: 'muted' }, dir === 'largo' ? 'Compra: SL < entrada < TP.' : 'Venta: TP < entrada < SL.')); return; }
     const ok = dir === 'largo' ? s < e && e < t : t < e && e < s;
     reemplazar(resumenNiveles,
       el('span', { class: `dir dir-${dir}` }, dir === 'largo' ? '▲ LARGO' : '▼ CORTO'),
       ok ? el('span', { class: 'mono' }, `R:R 1:${numero(Math.abs(t - e) / Math.abs(e - s), 2)} · riesgo ${numero(Math.abs(e - s), 5)}`)
-         : el('span', { class: 'rojo' }, dir === 'largo' ? 'En un largo: SL < entrada < TP' : 'En un corto: TP < entrada < SL'));
+         : el('span', { class: 'rojo' }, dir === 'largo' ? 'En una compra: SL < entrada < TP' : 'En una venta: TP < entrada < SL'));
   }
   [entrada, sl, tp].forEach(i => i.addEventListener('input', pintarNiveles));
 
@@ -271,12 +278,13 @@ function formulario(cont, ctx, id) {
 
   cont.append(
     el('div', { class: 'sec' }, el('span', {}, s0 ? 'Editar setup' : 'Nuevo setup')),
-    congelado && el('div', { class: 'aviso-candado' }, icono('candado'), ' Este setup ya está en juego: sus niveles, hora y condiciones están congelados para que el winrate sea honesto. Puedes cambiar el porqué, las etiquetas y la anotación, o anularlo.'),
+    congelado ? el('div', { class: 'aviso-candado' }, icono('candado'), ' Este setup ya está en juego: sus niveles, hora y condiciones están congelados para que el winrate sea honesto. Puedes cambiar el porqué, las etiquetas y la anotación, o anularlo.') : '',
     el('div', { class: 'form-setup' },
       el('div', { class: 'card' },
         el('div', { class: 'fila-campos' },
           campo('Símbolo (nombre en MT5)', el('div', { class: 'fila-rep' }, simbolo,
             !congelado && el('button', { type: 'button', class: 'btn btn-peq', onclick: () => nuevoSimbolo(store).then(s => { if (s) { pintarSimbolos(); simbolo.value = s; } }) }, '+')))),
+        el('div', { class: 'field' }, el('label', {}, 'Compra o venta'), dirCaja),
         el('div', { class: 'fila-campos' }, campo('Entrada', entrada), campo('Stop (SL)', sl), campo('Objetivo (TP)', tp)),
         resumenNiveles,
         el('div', { class: 'field' }, el('label', {}, 'Temporalidad del setup'), tfCaja),
@@ -300,8 +308,8 @@ function formulario(cont, ctx, id) {
     el('div', { class: 'fila-campos', style: { marginTop: '12px' } }, campo('Hora límite: día (opcional)', limiteF), campo('Hora límite: hora', limiteH)));
   if (congelado) bloqueCond.querySelectorAll('button, input, select').forEach(n => { n.disabled = true; });
 
-  pintarNiveles(); pintarTf(); pintarModo(); pintarPasos(); pintarEtiquetas(); pintarAnotaciones(); pintarCapturas();
-  if (congelado) { tfCaja.querySelectorAll('button').forEach(b => { b.disabled = true; }); modoCaja.querySelectorAll('button').forEach(b => { b.disabled = true; }); }
+  pintarDir(); pintarNiveles(); pintarTf(); pintarModo(); pintarPasos(); pintarEtiquetas(); pintarAnotaciones(); pintarCapturas();
+  if (congelado) { dirCaja.querySelectorAll('button').forEach(b => { b.disabled = true; }); tfCaja.querySelectorAll('button').forEach(b => { b.disabled = true; }); modoCaja.querySelectorAll('button').forEach(b => { b.disabled = true; }); }
 
   async function guardar() {
     const datosLibres = { porque: porque.value.trim() || null, etiquetas: [...est.etiquetas], anotacion_id: anotacion.value || null };
@@ -312,10 +320,11 @@ function formulario(cont, ctx, id) {
         return navegar(`setups/${s0.id}`);
       }
       if (!simbolo.value) return toast('Elige el símbolo.', 'err');
+      const dir = est.dir;
+      if (!dir) return toast('Elige si es compra o venta.', 'err');
       if (!entrada.value || !sl.value || !tp.value) return toast('Faltan entrada, SL o TP.', 'err');
-      const dir = direccion();
       const e = +entrada.value, s = +sl.value, t = +tp.value;
-      if (!(dir === 'largo' ? s < e && e < t : t < e && e < s)) return toast(dir === 'largo' ? 'En un largo: SL < entrada < TP.' : 'En un corto: TP < entrada < SL.', 'err');
+      if (!(dir === 'largo' ? s < e && e < t : t < e && e < s)) return toast(dir === 'largo' ? 'En una compra: SL < entrada < TP.' : 'En una venta: TP < entrada < SL.', 'err');
       if (!fecha.value || !hora.value) return toast('Pon el día y la hora de validación.', 'err');
       let condiciones = null;
       if (est.modo === 'condiciones') {
