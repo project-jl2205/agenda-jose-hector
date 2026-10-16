@@ -210,3 +210,7 @@
   .galeria .mini{width:100%;height:auto;}
   .previa img,.add-captura{width:110px;height:76px;}
 }
+
+/* fotos de «cómo quedó el mercado» */
+.fotos-resultado{margin-bottom:24px;}
+.galeria .foto{display:flex;flex-direction:column;gap:4px;margin:0;}

@@ -403,6 +403,17 @@ function ficha(cont, ctx, id) {
     } catch (e) { error(e); }
   }
 
+  // fotos de «cómo quedó el mercado»: se pueden añadir cuando ya se decidió el setup (o pasó su tiempo)
+  let permitidoResultado = false;
+  let setupActual = null;
+  const pegar = ev => {
+    const fs = [...(ev.clipboardData?.files || [])].filter(f => f.type.startsWith('image/'));
+    if (!fs.length || !permitidoResultado || !setupActual) return;
+    ev.preventDefault();
+    subirFotos(ctx, setupActual, fs, 'resultado');
+  };
+  document.addEventListener('paste', pegar);
+
   function pintar() {
     const todo = store.setup(id);
     if (!todo || todo.setup.borrado_en) { reemplazar(raiz, vacio('Ese setup no existe o está en la papelera.')); return; }
@@ -415,6 +426,13 @@ function ficha(cont, ctx, id) {
     const dato = (lbl, val, clase = '') => el('div', { class: 'dato' }, el('div', { class: 'card-lbl' }, lbl), el('div', { class: `dato-val ${clase}` }, val));
     const anot = s.anotacion_id && store.fila('anotaciones', s.anotacion_id);
     const etiquetas = (s.etiquetas || []).map(x => store.fila('etiquetas', x)).filter(Boolean);
+    const esResultado = c => c.ruta.includes('/usuario-resultado-');
+    const deSetup = capturas.filter(c => !esResultado(c));
+    const deResultado = capturas.filter(esResultado);
+    const finEstimado = new Date(s.t0).getTime() + MIN_TF[s.temporalidad] * 60000;
+    const decidido = !!e && e.validacion !== 'pendiente';
+    permitidoResultado = !s.anulado_en && (decidido || (s.modo === 'tiempo' && Date.now() >= finEstimado));
+    setupActual = s;
     reemplazar(raiz,
       el('div', { class: 'ficha-cab' },
         el('button', { class: 'row-btn', title: 'Volver', onclick: () => navegar('setups') }, icono('izq')),
@@ -466,41 +484,63 @@ function ficha(cont, ctx, id) {
       el('div', { class: 'g2' },
         el('div', { class: 'card' },
           el('div', { class: 'card-lbl' }, 'Vuestra captura'),
-          capturas.length ? el('div', { class: 'galeria' }, capturas.map(c => miniatura(ctx, c.ruta, 'Captura del setup'))) : el('div', { class: 'card-sub' }, 'Sin captura.'),
-          mio && !s.anulado_en && subirMas(ctx, s)),
+          deSetup.length ? el('div', { class: 'galeria' }, deSetup.map(c => miniatura(ctx, c.ruta, 'Captura del setup'))) : el('div', { class: 'card-sub' }, 'Sin captura.'),
+          mio && !s.anulado_en && subirMas(ctx, s, 'setup')),
         el('div', { class: 'card' },
           el('div', { class: 'card-lbl' }, 'El porqué'),
           el('div', { class: 'texto-largo' }, s.porque || '—'),
           anot && el('a', { class: 'enlace-anot', href: '#/mercado' }, `Evento ligado: ${anot.titulo} · ${F.fmtDiaHora(anot.fecha_hora)}`))),
+      el('div', { class: 'sec' }, el('span', {}, 'Cómo quedó el mercado · vuestras fotos')),
+      el('div', { class: 'card fotos-resultado' },
+        deResultado.length
+          ? el('div', { class: 'galeria' }, deResultado.map(c => {
+              const quien = store.perfil(c.subida_por)?.nombre || '';
+              const pie = `Cómo quedó · ${quien} · ${c.subida_en ? F.fmtDiaHora(c.subida_en) : 'ahora'}`;
+              return el('figure', { class: 'foto' }, miniatura(ctx, c.ruta, pie), el('figcaption', { class: 'card-sub' }, `${quien} · ${c.subida_en ? F.fmtDiaHora(c.subida_en) : 'ahora'}`));
+            }))
+          : el('div', { class: 'card-sub' }, permitidoResultado ? 'Aún no hay fotos de cómo quedó.' : ''),
+        s.anulado_en ? null
+          : permitidoResultado
+            ? subirMas(ctx, s, 'resultado')
+            : el('div', { class: 'card-sub' }, s.modo === 'tiempo'
+                ? `Podrás añadir fotos de cómo quedó cuando pase la temporalidad (≈ ${F.fmtDiaHora(finEstimado)}).`
+                : 'Podrás añadir fotos de cómo quedó cuando se cumplan o fallen las condiciones.')),
       el('div', { class: 'sec' }, el('span', {}, 'Lo que registró el agente')),
       eventos.length
         ? el('div', { class: 'eventos' }, eventos.map(ev => el('div', { class: `evento ev-${ev.tipo}` },
             el('div', { class: 'evento-cab' }, el('span', { class: 'evento-tipo' }, TIPO_EVENTO[ev.tipo] || ev.tipo), el('span', { class: 'card-sub' }, F.fmtDiaHora(ev.en))),
             el('div', { class: 'evento-texto' }, ev.texto),
-            ev.imagen && miniatura(ctx, ev.imagen, `${s.simbolo} · ${TIPO_EVENTO[ev.tipo] || ev.tipo} · ${F.fmtDiaHora(ev.en)}`))))
+            ev.imagen && miniatura(ctx, ev.imagen, `${s.simbolo} · ${TIPO_EVENTO[ev.tipo] || ev.tipo} · ${F.fmtDiaHora(ev.en)} · velas de ${s.temporalidad}`),
+            ev.imagen && ev.datos?.imagen_detalle && el('button', { class: 'enlace', onclick: async () => verImagen(await url(ctx, ev.datos.imagen_detalle), `${s.simbolo} · detalle con velas pequeñas · ${F.fmtDiaHora(ev.en)}`) }, 'Ver detalle (velas pequeñas)'))))
         : vacio(new Date(s.t0) > new Date() ? `El agente empezará a vigilarlo a las ${F.fmtHora(s.t0)} del ${F.fmtDia(s.t0)}.` : 'Aún no hay registros del agente.'));
   }
 
   const quitar = store.on(['setups', 'setup_estado', 'setup_eventos', 'setup_capturas', 'setup_marcas', 'simbolos', 'etiquetas', 'anotaciones', 'perfiles'], pintar);
   pintar();
-  return () => { quitar(); quitarHilo?.(); };
+  return () => { quitar(); quitarHilo?.(); document.removeEventListener('paste', pegar); };
 }
 
-function subirMas(ctx, s) {
+/** Sube fotos al setup: tipo 'setup' (vuestra captura) o 'resultado' (cómo quedó el mercado). */
+async function subirFotos(ctx, s, ficheros, tipo) {
   const { store } = ctx;
+  let n = 0;
+  for (const [i, f] of [...ficheros].entries()) {
+    try {
+      const blob = await comprimirImagen(f);
+      const ruta = `setups/${s.id}/usuario-${tipo === 'resultado' ? 'resultado-' : ''}${Date.now()}-${i}.webp`;
+      await ctx.db.archivos.subir(ruta, blob, 'image/webp');
+      await store.insertar('setup_capturas', { setup_id: s.id, ruta, subida_por: store.usuarioId(), subida_en: new Date().toISOString() });
+      n += 1;
+    } catch (e) { error(e, 'La foto no se pudo subir: '); }
+  }
+  if (n) toast(n === 1 ? 'Foto añadida' : `${n} fotos añadidas`);
+}
+
+function subirMas(ctx, s, tipo = 'setup') {
   const input = el('input', { type: 'file', accept: 'image/*', multiple: true, class: 'oculto' });
-  input.addEventListener('change', async () => {
-    for (const [i, f] of [...input.files].entries()) {
-      try {
-        const blob = await comprimirImagen(f);
-        const ruta = `setups/${s.id}/usuario-${Date.now()}-${i}.webp`;
-        await ctx.db.archivos.subir(ruta, blob, 'image/webp');
-        await store.insertar('setup_capturas', { setup_id: s.id, ruta, subida_por: store.usuarioId(), subida_en: new Date().toISOString() });
-      } catch (e) { error(e, 'La captura no se pudo subir: '); }
-    }
-    input.value = '';
-  });
-  return el('div', {}, input, el('button', { class: 'add-st-btn', onclick: () => input.click() }, '+ Añadir captura'));
+  input.addEventListener('change', async () => { await subirFotos(ctx, s, input.files, tipo); input.value = ''; });
+  return el('div', {}, input, el('button', { class: 'add-st-btn', onclick: () => input.click() },
+    tipo === 'resultado' ? '+ Añadir foto de cómo quedó (o pégala con Ctrl+V)' : '+ Añadir captura'));
 }
 
 export function textoPaso(store, s, p) {
