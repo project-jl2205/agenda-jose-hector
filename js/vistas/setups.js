@@ -446,24 +446,31 @@ function ficha(cont, ctx, id) {
 
   function marcarResultado(s, resultado, tp = null) {
     const antes = resultado === 'cerrado_antes';
-    const precioIn = el('input', { type: 'number', step: 'any', inputmode: 'decimal', placeholder: 'Precio al que cerrasteis' });
-    const rVivo = el('div', { class: 'card-sub mono' }, 'Pon el precio y verás las R.');
-    precioIn.addEventListener('input', () => {
-      if (precioIn.value === '') { rVivo.textContent = 'Pon el precio y verás las R.'; return; }
-      const r = rConseguido({ ...s, resultado: 'cerrado_antes', resultado_precio: +precioIn.value });
+    // precio exacto de salida: en ganado viene el del TP y en perdido el del SL; se puede corregir
+    const conPrecio = ['ganado', 'perdido', 'cerrado_antes'].includes(resultado);
+    const sugerido = resultado === 'ganado' ? nivelTp(s, tp || 1) : resultado === 'perdido' ? s.sl : '';
+    const precioIn = el('input', { type: 'number', step: 'any', inputmode: 'decimal', value: sugerido, placeholder: 'Precio al que cerrasteis' });
+    const rVivo = el('div', { class: 'card-sub mono' });
+    const pintarR = () => {
+      if (precioIn.value === '') { rVivo.textContent = 'Pon el precio y verás las R.'; rVivo.className = 'card-sub mono'; return; }
+      const r = rDePrecio(s, precioIn.value);
       rVivo.textContent = r === null ? '' : `${r > 0 ? '+' : ''}${numero(r, 2)} R`;
       rVivo.className = `card-sub mono ${r > 0 ? 'verde' : r < 0 ? 'rojo' : ''}`;
-    });
+    };
+    precioIn.addEventListener('input', pintarR);
+    pintarR();
+    const ayudaPrecio = resultado === 'ganado' ? `Viene el del TP${(s.tps || []).length ? tp : ''}; cámbialo si salió a otro precio.`
+      : resultado === 'perdido' ? 'Viene el del SL; cámbialo si salió a otro precio (deslizamiento, cierre a mano…).' : null;
     const nota = el('textarea', { rows: 3, placeholder: antes ? 'Por qué cerrasteis antes: noticia, cambio de estructura, parcial…' : 'Qué pasó (opcional): cómo se movió, qué aprendisteis…' });
     const titulo = resultado === 'ganado' && (s.tps || []).length ? `GANADO · TP${tp}` : RESULTADOS[resultado][0];
     modal({
       titulo, ancho: 480,
-      cuerpo: el('div', {}, antes && campo('Precio de cierre', precioIn), antes && rVivo, campo('Qué pasó', nota)),
+      cuerpo: el('div', {}, conPrecio && campo('Precio exacto de salida', precioIn, ayudaPrecio), conPrecio && rVivo, campo('Qué pasó', nota)),
       botones: [{ texto: 'Cancelar' }, { texto: 'GUARDAR RESULTADO', tipo: 'primario', accion: async () => {
-        if (antes && (precioIn.value === '' || Number.isNaN(+precioIn.value))) { toast('Pon el precio de cierre.', 'err'); return false; }
+        if (conPrecio && (precioIn.value === '' || Number.isNaN(+precioIn.value))) { toast('Pon el precio de salida.', 'err'); return false; }
         try {
           await store.actualizar('setups', { id: s.id }, {
-            resultado, resultado_tp: tp, resultado_precio: antes ? +precioIn.value : null, resultado_nota: nota.value.trim() || null,
+            resultado, resultado_tp: tp, resultado_precio: conPrecio ? +precioIn.value : null, resultado_salidas: null, resultado_nota: nota.value.trim() || null,
             resultado_por: store.usuarioId(), resultado_en: new Date().toISOString(),
           });
           toast('Resultado guardado');
@@ -558,7 +565,8 @@ function ficha(cont, ctx, id) {
     if (s.anulado_en) return el('div', { class: 'card estado-card' }, el('div', { class: 'card-lbl' }, 'Resultado'), cab);
     if (s.resultado) {
       return el('div', { class: 'card estado-card' }, el('div', { class: 'card-lbl' }, 'Resultado'), cab,
-        s.resultado === 'cerrado_antes' && el('div', { class: 'card-sub mono' }, `Cerrado a ${precio(store, s, s.resultado_precio)}`),
+        ['ganado', 'perdido', 'cerrado_antes'].includes(s.resultado) && s.resultado_precio !== null && s.resultado_precio !== undefined
+          && el('div', { class: 'card-sub mono' }, `Salida a ${precio(store, s, s.resultado_precio)}`),
         s.resultado === 'parciales' && el('div', { class: 'card-sub mono salidas-ficha' }, ...(s.resultado_salidas || []).map(x => {
           const r = rDePrecio(s, x.precio);
           return el('div', {}, `${numero(x.pct, 1)} % a ${precio(store, s, x.precio)} → ${r > 0 ? '+' : ''}${numero(r, 2)} R`);

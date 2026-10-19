@@ -43,12 +43,14 @@ export function estadoSetup(s) {
   return { clave: 'por_cerrar', texto: 'POR CERRAR', color: 'azul' };
 }
 
-/** R conseguidas: ganado = distancia al TP alcanzado / riesgo; perdido = −1; breakeven = 0; si no, null. */
+/** R conseguidas: con el precio exacto de salida si lo hay; si no, ganado = TP alcanzado, perdido = −1; breakeven = 0. */
 export function rConseguido(s) {
   const riesgo = Math.abs(s.entrada - s.sl);
   if (s.anulado_en || !riesgo) return null;
-  if (s.resultado === 'ganado') return Math.abs(nivelTp(s, s.resultado_tp || 1) - s.entrada) / riesgo;
-  if (s.resultado === 'perdido') return -1;
+  // si apuntasteis el precio exacto de salida, las R salen de ese precio; si no, del TP / SL
+  const conPrecio = s.resultado_precio !== null && s.resultado_precio !== undefined;
+  if (s.resultado === 'ganado') return conPrecio ? rDePrecio(s, s.resultado_precio) : Math.abs(nivelTp(s, s.resultado_tp || 1) - s.entrada) / riesgo;
+  if (s.resultado === 'perdido') return conPrecio ? rDePrecio(s, s.resultado_precio) : -1;
   if (s.resultado === 'breakeven') return 0;
   if (s.resultado === 'cerrado_antes') return rDePrecio(s, s.resultado_precio);
   if (s.resultado === 'parciales') return rDeSalidas(s, s.resultado_salidas);
