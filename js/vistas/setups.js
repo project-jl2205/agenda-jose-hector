@@ -4,7 +4,7 @@
 
 import { el, icono, campo, selector, modal, chip, toast, error, confirmar, pedirTexto, avatar, reemplazar, vacio, numero, comprimirImagen, verImagen } from '../ui.js';
 import { hiloComentarios } from './comentarios.js';
-import { estadoSetup, rConseguido, nivelTp, RESULTADOS } from '../resultado.js';
+import { estadoSetup, rConseguido, nivelTp, RESULTADOS, rDePrecio, rDeSalidas } from '../resultado.js';
 
 const TFS = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'];
 const MIN_TF = { '1m': 1, '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240, '1d': 1440, '1w': 10080 };
@@ -67,7 +67,7 @@ function lista(cont, ctx) {
     reemplazar(filtros,
       sel('simbolo', [['', 'Todos los símbolos'], ...simbolos]),
       sel('autor', [['', 'Los dos'], ...store.perfiles().map(p => [p.id, p.nombre])]),
-      sel('estado', [['', 'Cualquier estado'], ['por_cerrar', 'Por cerrar'], ['ganado', 'Ganados'], ['perdido', 'Perdidos'], ['breakeven', 'Breakeven'], ['cerrado_antes', 'Cerrados antes'], ['no_activado', 'No activados'], ['pendiente', 'Pendientes'], ['anulado', 'Anulados']]),
+      sel('estado', [['', 'Cualquier estado'], ['por_cerrar', 'Por cerrar'], ['ganado', 'Ganados'], ['perdido', 'Perdidos'], ['breakeven', 'Breakeven'], ['cerrado_antes', 'Cerrados antes'], ['parciales', 'Con parciales'], ['no_activado', 'No activados'], ['pendiente', 'Pendientes'], ['anulado', 'Anulados']]),
       sel('tf', [['', 'Toda temporalidad'], ...TFS]),
       sel('modo', [['', 'Tiempo y condiciones'], ['tiempo', 'Por tiempo'], ['condiciones', 'Por condiciones']]));
   }
@@ -471,9 +471,63 @@ function ficha(cont, ctx, id) {
       } }],
     });
   }
+  // varias salidas, cada una con su precio exacto y el % de la posición que cerrasteis ahí
+  function marcarParciales(s) {
+    const rTxt = r => (r === null ? '—' : `${r > 0 ? '+' : ''}${numero(r, 2)} R`);
+    const salidas = [{ precio: '', pct: '50' }, { precio: '', pct: '50' }];
+    const filasCaja = el('div', { class: 'salidas' });
+    const resumen = el('div', { class: 'resumen-salidas mono' });
+    const atajos = [...Array.from({ length: 1 + (s.tps || []).length }, (_, i) => [`TP${i + 1}`, nivelTp(s, i + 1)]), ['Entrada', s.entrada], ['SL', s.sl]];
+    let foco = 0;
+    function pintarResumen() {
+      const suma = salidas.reduce((t, x) => t + (+x.pct || 0), 0);
+      const r = Math.abs(suma - 100) < 0.01 ? rDeSalidas(s, salidas) : null;
+      resumen.className = `resumen-salidas mono ${r > 0 ? 'verde' : r < 0 ? 'rojo' : ''}`;
+      resumen.textContent = Math.abs(suma - 100) >= 0.01 ? `Los % suman ${numero(suma, 1)} %: tienen que sumar 100 %.` : `Total: ${rTxt(r)}`;
+    }
+    function pintarFilas() {
+      reemplazar(filasCaja, ...salidas.map((x, i) => {
+        const precioIn = el('input', { type: 'number', step: 'any', inputmode: 'decimal', class: 'entrada', placeholder: 'Precio exacto', value: x.precio,
+          onfocus: () => { foco = i; }, oninput: e => { x.precio = e.target.value; rFila.textContent = rTxt(rDePrecio(s, x.precio)); pintarResumen(); } });
+        const pctIn = el('input', { type: 'number', step: 'any', min: 0, max: 100, inputmode: 'decimal', class: 'entrada pct', value: x.pct,
+          oninput: e => { x.pct = e.target.value; pintarResumen(); } });
+        const rFila = el('span', { class: 'mono r-fila' }, rTxt(rDePrecio(s, x.precio)));
+        return el('div', { class: 'salida' }, el('span', { class: 'paso-num' }, String(i + 1)), precioIn, pctIn, el('span', { class: 'muted' }, '%'), rFila,
+          salidas.length > 1 && el('button', { type: 'button', class: 'row-btn del', title: 'Quitar esta salida', onclick: () => { salidas.splice(i, 1); pintarFilas(); } }, '×'));
+      }));
+      pintarResumen();
+    }
+    pintarFilas();
+    const nota = el('textarea', { rows: 2, placeholder: 'Qué pasó (opcional): por qué parcialeasteis ahí…' });
+    modal({
+      titulo: 'CIERRE CON PARCIALES', ancho: 560,
+      cuerpo: el('div', {},
+        el('div', { class: 'card-sub' }, 'Cada salida: el precio exacto y el % de la posición que cerrasteis ahí. Las R salen de la media ponderada.'),
+        el('div', { class: 'chips atajos' }, el('span', { class: 'card-sub' }, 'Rellenar la salida seleccionada con:'),
+          ...atajos.map(([txt, v]) => el('button', { type: 'button', class: 'chip', style: { '--c': '#6b6b8a' }, onclick: () => { salidas[foco].precio = String(v); pintarFilas(); } }, `${txt} ${precio(store, s, v)}`))),
+        filasCaja,
+        el('button', { type: 'button', class: 'add-st-btn', onclick: () => { const resto = 100 - salidas.reduce((t, x) => t + (+x.pct || 0), 0); salidas.push({ precio: '', pct: String(Math.max(0, +resto.toFixed(2))) }); foco = salidas.length - 1; pintarFilas(); } }, '+ Añadir otra salida'),
+        resumen, campo('Qué pasó', nota)),
+      botones: [{ texto: 'Cancelar' }, { texto: 'GUARDAR RESULTADO', tipo: 'primario', accion: async () => {
+        const suma = salidas.reduce((t, x) => t + (+x.pct || 0), 0);
+        if (salidas.some(x => x.precio === '' || Number.isNaN(+x.precio))) { toast('A alguna salida le falta el precio.', 'err'); return false; }
+        if (salidas.some(x => !(+x.pct > 0))) { toast('Cada salida necesita un % mayor que 0.', 'err'); return false; }
+        if (Math.abs(suma - 100) >= 0.01) { toast(`Los % suman ${numero(suma, 1)} %: tienen que sumar 100 %.`, 'err'); return false; }
+        try {
+          await store.actualizar('setups', { id: s.id }, {
+            resultado: 'parciales', resultado_tp: null, resultado_precio: null,
+            resultado_salidas: salidas.map(x => ({ precio: +x.precio, pct: +x.pct })), resultado_nota: nota.value.trim() || null,
+            resultado_por: store.usuarioId(), resultado_en: new Date().toISOString(),
+          });
+          toast('Resultado guardado');
+        } catch (e) { error(e); return false; }
+      } }],
+    });
+  }
+
   async function quitarResultado(s) {
     if (!await confirmar('¿Quitar el resultado marcado? El setup vuelve a «por cerrar».', { si: 'Quitar' })) return;
-    try { await store.actualizar('setups', { id: s.id }, { resultado: null, resultado_tp: null, resultado_precio: null, resultado_nota: null, resultado_por: null, resultado_en: null }); }
+    try { await store.actualizar('setups', { id: s.id }, { resultado: null, resultado_tp: null, resultado_precio: null, resultado_salidas: null, resultado_nota: null, resultado_por: null, resultado_en: null }); }
     catch (e) { error(e); }
   }
 
@@ -505,6 +559,10 @@ function ficha(cont, ctx, id) {
     if (s.resultado) {
       return el('div', { class: 'card estado-card' }, el('div', { class: 'card-lbl' }, 'Resultado'), cab,
         s.resultado === 'cerrado_antes' && el('div', { class: 'card-sub mono' }, `Cerrado a ${precio(store, s, s.resultado_precio)}`),
+        s.resultado === 'parciales' && el('div', { class: 'card-sub mono salidas-ficha' }, ...(s.resultado_salidas || []).map(x => {
+          const r = rDePrecio(s, x.precio);
+          return el('div', {}, `${numero(x.pct, 1)} % a ${precio(store, s, x.precio)} → ${r > 0 ? '+' : ''}${numero(r, 2)} R`);
+        })),
         s.resultado_nota && el('div', { class: 'texto-largo nota-resultado' }, s.resultado_nota),
         el('div', { class: 'card-sub' }, `Marcado por ${quien?.nombre || '¿?'} · ${s.resultado_en ? F.fmtDiaHora(s.resultado_en) : ''}`,
           el('button', { class: 'enlace', onclick: () => quitarResultado(s) }, ' · cambiar')));
@@ -517,6 +575,7 @@ function ficha(cont, ctx, id) {
       el('div', { class: 'botones-resultado' }, ...ganar,
         el('button', { class: 'btn btn-peq btn-perdido', onclick: () => marcarResultado(s, 'perdido') }, 'PERDIDO (SL)'),
         el('button', { class: 'btn btn-peq btn-antes', onclick: () => marcarResultado(s, 'cerrado_antes') }, 'CERRADO ANTES'),
+        el('button', { class: 'btn btn-peq btn-antes', onclick: () => marcarParciales(s) }, 'PARCIALES'),
         el('button', { class: 'btn btn-peq', onclick: () => marcarResultado(s, 'breakeven') }, 'BREAKEVEN'),
         el('button', { class: 'btn btn-peq', onclick: () => marcarResultado(s, 'no_activado') }, 'NO ACTIVADO')));
   }

@@ -32,7 +32,7 @@ export function montar(cont, ctx) {
     el('div', { class: 'sec' }, el('span', {}, 'Evolución del winrate (acumulado)')),
     el('div', { class: 'card' }, el('div', { class: 'chart-wrap alto' }, lienzo)),
     el('div', { class: 'card-sub', style: { marginTop: '10px' } },
-      'Todo sale del resultado que marcáis vosotros en cada setup. Winrate = ganados / (ganados + perdidos); el breakeven no entra en el winrate pero sí en las R (0 R). Un «cerrado antes» cuenta como ganado o perdido según salga en positivo o negativo, con sus R reales. ',
+      'Todo sale del resultado que marcáis vosotros en cada setup. Winrate = ganados / (ganados + perdidos); el breakeven no entra en el winrate pero sí en las R (0 R). Un «cerrado antes» o «parciales» cuenta como ganado o perdido según salga en positivo o negativo, con sus R reales (en parciales, la media ponderada por el % de cada salida). ',
       'R: ganado = distancia al TP alcanzado ÷ riesgo; perdido = −1 R. No cuentan: no activados, anulados ni los que están por cerrar. IC 95 % de Wilson: con pocos setups el margen es grande.'));
   let grafico = null;
 

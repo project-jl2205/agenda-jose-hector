@@ -225,4 +225,12 @@
 .btn-ganado{border-color:#10b98180;color:var(--green);}
 .btn-perdido{border-color:#ef444480;color:var(--red);}
 .btn-antes{border-color:#3b82f680;color:var(--blue);}
+.salidas{display:flex;flex-direction:column;gap:8px;margin:10px 0;}
+.salida{display:flex;align-items:center;gap:8px;}
+.salida .entrada{flex:1;min-width:0;}
+.salida .entrada.pct{flex:0 0 70px;}
+.r-fila{flex:0 0 72px;text-align:right;font-size:12px;}
+.resumen-salidas{margin:10px 0;font-weight:700;}
+.atajos{margin:10px 0 4px;align-items:center;}
+.salidas-ficha{display:flex;flex-direction:column;gap:2px;margin-top:6px;}
 .nota-resultado{margin:8px 0;padding:8px 10px;border-left:3px solid var(--border);background:var(--surface2);border-radius:6px;}
