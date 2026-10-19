@@ -14,8 +14,10 @@ vigila los setups con MT5 y el esquema de la base de datos están en el PC Windo
 - **Seguridad**: nunca `innerHTML` con texto de usuario → `ui.el()` / `textContent`.
   Nunca una clave **secreta** (`sb_secret_…`) en ningún fichero: `js/config.js` solo lleva la URL y la
   clave **publicable** (pública por diseño; protege RLS + la lista de 2 miembros).
-- **No cambiar el modelo de datos** (tablas/columnas) desde aquí: eso se hace con Jose Luis en el
-  SQL Editor de Supabase. Si un cambio lo necesita, avisa y para.
+- **Cambios en el modelo de datos** (tablas/columnas/permisos): se pueden hacer desde cualquiera de los
+  dos ordenadores. Se preparan como SQL para pegar en el SQL Editor de Supabase y la web se publica
+  DESPUÉS de aplicarlo (si no, la web pediría columnas que aún no existen). Si afecta a lo que vigila el
+  agente de MT5, avisa de qué hay que cambiar en él.
 
 ## Mapa
 - `index.html` · `css/base.css` (tokens y piezas del panel) · `css/vistas.css`

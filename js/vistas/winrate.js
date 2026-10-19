@@ -1,8 +1,9 @@
-// WINRATE — por símbolo, sin opinión: winrate final (TP/SL) y de validación (tiempo o condiciones),
-// con n, intervalo de confianza 95 % de Wilson, últimos 10/20 y lo que no cuenta aparte.
+// WINRATE — por símbolo, con el resultado que marcáis vosotros (el agente no cuenta): winrate
+// (ganados / ganados + perdidos), R conseguidas, IC 95 % de Wilson, últimos 10/20 y lo que no cuenta aparte.
 // No se colorea contra el 50 %: con R:R ≠ 1 el equilibrio no es el 50 %.
 
 import { el, selector, reemplazar, vacio, numero } from '../ui.js';
+import { estadoSetup, rConseguido, resultadoEfectivo } from '../resultado.js';
 
 const TFS = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'];
 
@@ -28,11 +29,11 @@ export function montar(cont, ctx) {
   cont.append(
     el('div', { class: 'sec' }, el('span', {}, 'Winrate')), filtros, tarjetas,
     el('div', { class: 'sec' }, el('span', {}, 'Por símbolo')), tabla,
-    el('div', { class: 'sec' }, el('span', {}, 'Evolución del winrate final (acumulado)')),
+    el('div', { class: 'sec' }, el('span', {}, 'Evolución del winrate (acumulado)')),
     el('div', { class: 'card' }, el('div', { class: 'chart-wrap alto' }, lienzo)),
     el('div', { class: 'card-sub', style: { marginTop: '10px' } },
-      'Winrate final = ganados / (ganados + perdidos). Winrate de validación = válidos / (válidos + fallos), donde «fallo» incluye el fallo en temporalidad. ',
-      'No cuentan: no activados, anulados, abiertos ni sin datos. IC 95 % de Wilson: con pocos setups el margen es grande.'));
+      'Todo sale del resultado que marcáis vosotros en cada setup. Winrate = ganados / (ganados + perdidos); el breakeven no entra en el winrate pero sí en las R (0 R). Un «cerrado antes» cuenta como ganado o perdido según salga en positivo o negativo, con sus R reales. ',
+      'R: ganado = distancia al TP alcanzado ÷ riesgo; perdido = −1 R. No cuentan: no activados, anulados ni los que están por cerrar. IC 95 % de Wilson: con pocos setups el margen es grande.'));
   let grafico = null;
 
   function filtrados() {
@@ -42,28 +43,27 @@ export function montar(cont, ctx) {
       const t = new Date(s.t0).getTime();
       return (!f.autor || s.autor === f.autor) && (!f.tf || s.temporalidad === f.tf) && (!f.modo || s.modo === f.modo)
         && (!f.etiqueta || (s.etiquetas || []).includes(f.etiqueta)) && t >= desde && t < hasta;
-    }).map(s => ({ s, e: store.fila('setup_estado', s.id) || {} }));
+    }).map(s => ({ s, e: { resultado: resultadoEfectivo(s), resultado_en: s.resultado_en, clave: resultadoEfectivo(s) || estadoSetup(s).clave, r: rConseguido(s) } }));
   }
 
   function estadisticas(filas) {
-    const res = filas.filter(x => x.e.resultado).sort((a, b) => (a.e.resultado_en || '').localeCompare(b.e.resultado_en || ''));
+    const res = filas.filter(x => ['ganado', 'perdido'].includes(x.e.resultado)).sort((a, b) => (a.e.resultado_en || '').localeCompare(b.e.resultado_en || ''));
     const g = res.filter(x => x.e.resultado === 'ganado').length;
-    const val = filas.filter(x => ['valido', 'fallo'].includes(x.e.validacion));
-    const v = val.filter(x => x.e.validacion === 'valido').length;
+    const conR = filas.filter(x => x.e.r !== null);
+    const rTotal = conR.reduce((t, x) => t + x.e.r, 0);
     const ultimos = n => { const u = res.slice(-n); return u.length ? [u.filter(x => x.e.resultado === 'ganado').length, u.length] : null; };
     return {
       n: filas.length, g, p: res.length - g, resueltos: res.length,
-      v, fallos: val.length - v, validados: val.length,
-      temporalidad: filas.filter(x => x.e.validacion === 'fallo' && /temporalidad/i.test(x.e.validacion_motivo || '')).length,
-      noAct: filas.filter(x => x.e.estado === 'no_activado').length,
-      abiertos: filas.filter(x => ['pendiente', 'esperando', 'en_curso'].includes(x.e.estado || 'pendiente')).length,
-      sinDatos: filas.filter(x => x.e.estado === 'sin_datos').length,
-      ambiguos: filas.filter(x => x.e.ambiguo).length,
+      be: filas.filter(x => x.e.clave === 'breakeven').length,
+      rTotal, rMedia: conR.length ? rTotal / conR.length : null,
+      noAct: filas.filter(x => x.e.clave === 'no_activado').length,
+      abiertos: filas.filter(x => ['pendiente', 'por_cerrar'].includes(x.e.clave)).length,
       u10: ultimos(10), u20: ultimos(20),
     };
   }
 
   const porc = (k, n) => (n ? `${numero((k / n) * 100, 1)}%` : '—');
+  const rTxt = r => (r === null ? '—' : `${r > 0 ? '+' : ''}${numero(r, 2)} R`);
   const ic = (k, n) => { const w = wilson(k, n); return w ? `${numero(w[0], 0)}–${numero(w[1], 0)}%` : ''; };
 
   function pintarFiltros() {
@@ -84,20 +84,20 @@ export function montar(cont, ctx) {
     const t = estadisticas(filas);
     const tarjeta = (clase, lbl, val, sub) => el('div', { class: `card accent ${clase}` }, el('div', { class: 'card-lbl' }, lbl), el('div', { class: 'card-val' }, val), el('div', { class: 'card-sub' }, sub));
     reemplazar(tarjetas,
-      tarjeta('ac-g', 'Winrate final', porc(t.g, t.resueltos), `${t.g} ganados · ${t.p} perdidos · IC ${ic(t.g, t.resueltos) || '—'}`),
-      tarjeta('ac-i', 'Winrate de validación', porc(t.v, t.validados), `${t.v} válidos · ${t.fallos} fallos (${t.temporalidad} en temporalidad)`),
-      tarjeta('ac-o', 'Últimos 10 / 20', `${t.u10 ? porc(...t.u10) : '—'} / ${t.u20 ? porc(...t.u20) : '—'}`, 'winrate final de los más recientes'),
-      tarjeta('ac-p', 'Setups', String(t.n), `${t.abiertos} abiertos · ${t.noAct} no activados${t.sinDatos ? ` · ${t.sinDatos} sin datos` : ''}`));
+      tarjeta('ac-g', 'Winrate', porc(t.g, t.resueltos), `${t.g} ganados · ${t.p} perdidos${t.be ? ` · ${t.be} BE` : ''} · IC ${ic(t.g, t.resueltos) || '—'}`),
+      tarjeta('ac-i', 'R conseguidas', rTxt(t.rTotal), `media ${rTxt(t.rMedia)} por setup cerrado`),
+      tarjeta('ac-o', 'Últimos 10 / 20', `${t.u10 ? porc(...t.u10) : '—'} / ${t.u20 ? porc(...t.u20) : '—'}`, 'winrate de los más recientes'),
+      tarjeta('ac-p', 'Setups', String(t.n), `${t.abiertos} por cerrar · ${t.noAct} no activados`));
 
     const simbolos = [...new Set(filas.map(x => x.s.simbolo))].sort();
     if (!simbolos.length) { reemplazar(tabla, vacio('Todavía no hay setups con estos filtros.')); pintarGrafico([]); return; }
-    const cab = ['Símbolo', 'n', 'Ganados', 'Perdidos', 'Winrate final', 'IC 95 %', 'Últ. 10', 'Últ. 20', 'Válidos', 'Fallos', 'Winrate valid.', 'En temp.', 'No activ.', 'Abiertos', 'Ambiguos'];
+    const cab = ['Símbolo', 'n', 'Ganados', 'Perdidos', 'BE', 'Winrate', 'IC 95 %', 'Últ. 10', 'Últ. 20', 'R total', 'R media', 'No activ.', 'Por cerrar'];
     const fila = (nombre, st, total = false) => el('tr', { class: total ? 'total' : '' },
-      el('td', { class: 'sim' }, nombre), el('td', {}, String(st.n)), el('td', { class: 'verde' }, String(st.g)), el('td', { class: 'rojo' }, String(st.p)),
+      el('td', { class: 'sim' }, nombre), el('td', {}, String(st.n)), el('td', { class: 'verde' }, String(st.g)), el('td', { class: 'rojo' }, String(st.p)), el('td', {}, String(st.be)),
       el('td', { class: 'fuerte' }, porc(st.g, st.resueltos)), el('td', { class: 'muted' }, ic(st.g, st.resueltos)),
       el('td', {}, st.u10 ? porc(...st.u10) : '—'), el('td', {}, st.u20 ? porc(...st.u20) : '—'),
-      el('td', {}, String(st.v)), el('td', {}, String(st.fallos)), el('td', { class: 'fuerte' }, porc(st.v, st.validados)),
-      el('td', {}, String(st.temporalidad)), el('td', { class: 'muted' }, String(st.noAct)), el('td', { class: 'muted' }, String(st.abiertos)), el('td', { class: 'muted' }, String(st.ambiguos)));
+      el('td', { class: 'fuerte' }, rTxt(st.rTotal)), el('td', {}, rTxt(st.rMedia)),
+      el('td', { class: 'muted' }, String(st.noAct)), el('td', { class: 'muted' }, String(st.abiertos)));
     reemplazar(tabla, el('div', { class: 'tabla-scroll' }, el('table', { class: 'tabla mono' },
       el('thead', {}, el('tr', {}, cab.map(c => el('th', {}, c)))),
       el('tbody', {}, ...simbolos.map(sim => fila(store.fila('simbolos', sim)?.nombre || sim, estadisticas(filas.filter(x => x.s.simbolo === sim)))),
@@ -110,12 +110,12 @@ export function montar(cont, ctx) {
     const COLORES = ['#10b981', '#6366f1', '#f59e0b', '#ec4899', '#3b82f6', '#f97316', '#ef4444'];
     const serie = (lista) => {
       let g = 0, n = 0;
-      return lista.filter(x => x.e.resultado).sort((a, b) => a.e.resultado_en.localeCompare(b.e.resultado_en)).map(x => {
+      return lista.filter(x => ['ganado', 'perdido'].includes(x.e.resultado)).sort((a, b) => a.e.resultado_en.localeCompare(b.e.resultado_en)).map(x => {
         n += 1; if (x.e.resultado === 'ganado') g += 1;
         return { x: new Date(x.e.resultado_en).getTime(), y: Math.round((g / n) * 1000) / 10 };
       });
     };
-    const top = simbolos.map(s => [s, filas.filter(x => x.s.simbolo === s && x.e.resultado).length]).sort((a, b) => b[1] - a[1]).slice(0, 6).filter(x => x[1] > 0);
+    const top = simbolos.map(s => [s, filas.filter(x => x.s.simbolo === s && ['ganado', 'perdido'].includes(x.e.resultado)).length]).sort((a, b) => b[1] - a[1]).slice(0, 6).filter(x => x[1] > 0);
     const datasets = [
       { label: 'Todos', data: serie(filas), borderColor: '#e2e2f0', backgroundColor: '#e2e2f0', borderWidth: 2, pointRadius: 2, tension: 0.2 },
       ...top.map(([s], i) => ({ label: store.fila('simbolos', s)?.nombre || s, data: serie(filas.filter(x => x.s.simbolo === s)), borderColor: COLORES[i % COLORES.length], backgroundColor: COLORES[i % COLORES.length], borderWidth: 1.5, pointRadius: 2, tension: 0.2 })),
@@ -135,7 +135,7 @@ export function montar(cont, ctx) {
     } else { grafico.data.datasets = datasets; grafico.update(); }
   }
 
-  const quitar = store.on(['setups', 'setup_estado', 'simbolos', 'etiquetas', 'perfiles'], pintar);
+  const quitar = store.on(['setups', 'simbolos', 'etiquetas', 'perfiles'], pintar);
   pintar();
   return () => { quitar(); grafico?.destroy(); };
 }

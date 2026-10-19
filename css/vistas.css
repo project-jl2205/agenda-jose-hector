@@ -31,6 +31,9 @@
 .bloque-rep{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;}
 .fila-rep{display:flex;gap:8px;align-items:center;}
 .fila-rep select,.fila-rep .entrada{flex:1;}
+.tps-extra{margin-bottom:10px;}
+.tps-extra .fila-rep>.field{flex:1;}
+.tps-extra .fila-rep>.row-btn{margin-top:8px;}
 .dias-semana{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
 .dia-btn{width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-weight:700;cursor:pointer;}
 .dia-btn.activo{background:linear-gradient(135deg,var(--indigo),var(--pink));color:#fff;border-color:transparent;}
@@ -89,10 +92,12 @@
 .evento-tipo{font-size:9px;font-weight:800;letter-spacing:1px;color:var(--amber);}
 .evento-linea.setup .evento-tipo{color:var(--pink);}
 .evento-txt{font-weight:600;}
+.coment-btn{background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:11px;padding:3px 8px;cursor:pointer;flex-shrink:0;white-space:nowrap;}
+.coment-btn:hover,.coment-btn.hay{color:var(--text);border-color:var(--indigo);}
 .estrellas{color:var(--amber);font-size:11px;letter-spacing:1px;}
 .falta{background:#ef444425;color:var(--red);font-size:9px;font-weight:800;padding:2px 6px;border-radius:6px;}
 .estado-mini{font-size:9px;font-weight:800;text-transform:uppercase;padding:2px 6px;border-radius:6px;background:var(--surface3);color:var(--muted);}
-.e-ganado{color:var(--green);} .e-perdido{color:var(--red);} .e-en_curso{color:var(--amber);}
+.e-ganado{color:var(--green);} .e-perdido{color:var(--red);} .e-breakeven{color:var(--amber);} .e-por_cerrar{color:var(--blue);}
 .bandeja-card{position:sticky;top:12px;}
 .programar{padding:4px 8px;font-size:9px;}
 .hechas-bandeja{margin-top:10px;font-size:11px;color:var(--muted);}
@@ -214,3 +219,10 @@
 /* fotos de «cómo quedó el mercado» */
 .fotos-resultado{margin-bottom:24px;}
 .galeria .foto{display:flex;flex-direction:column;gap:4px;margin:0;}
+
+/* resultado manual del setup */
+.botones-resultado{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+.btn-ganado{border-color:#10b98180;color:var(--green);}
+.btn-perdido{border-color:#ef444480;color:var(--red);}
+.btn-antes{border-color:#3b82f680;color:var(--blue);}
+.nota-resultado{margin:8px 0;padding:8px 10px;border-left:3px solid var(--border);background:var(--surface2);border-radius:6px;}

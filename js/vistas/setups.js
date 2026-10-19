@@ -1,9 +1,10 @@
 // SETUPS — lista, formulario (niveles, temporalidad, hora de validación, modo tiempo/condiciones con
-// pasos, capturas) y ficha (vuestras capturas, lo que registra el agente con sus imágenes, pasos
-// manuales, comentarios, anular). El agente NO opina: solo hechos (ver DISENO.md §2).
+// pasos, capturas) y ficha (vuestras capturas, el resultado y los pasos que marcáis vosotros, las
+// fotos del agente, comentarios, anular). El agente NO valida nada: solo hace fotos.
 
 import { el, icono, campo, selector, modal, chip, toast, error, confirmar, pedirTexto, avatar, reemplazar, vacio, numero, comprimirImagen, verImagen } from '../ui.js';
 import { hiloComentarios } from './comentarios.js';
+import { estadoSetup, rConseguido, nivelTp, RESULTADOS } from '../resultado.js';
 
 const TFS = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'];
 const MIN_TF = { '1m': 1, '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240, '1d': 1440, '1w': 10080 };
@@ -14,13 +15,6 @@ const PLANTILLAS = {
   rompe_retestea_compra: { nombre: 'Rompe y retestea (compra)', pasos: (x, tf) => [{ tipo: 'cierre', tf, lado: 'encima', nivel: x }, { tipo: 'toca_desde', nivel: x, desde: 'arriba' }] },
   rompe_retestea_venta: { nombre: 'Rompe y retestea (venta)', pasos: (x, tf) => [{ tipo: 'cierre', tf, lado: 'debajo', nivel: x }, { tipo: 'toca_desde', nivel: x, desde: 'abajo' }] },
 };
-const ESTADOS = {
-  pendiente: ['PENDIENTE', 'gris'], esperando: ['ESPERANDO', 'azul'], en_curso: ['EN CURSO', 'ambar'],
-  ganado: ['GANADO', 'verde'], perdido: ['PERDIDO', 'rojo'], no_activado: ['NO ACTIVADO', 'gris'],
-  anulado: ['ANULADO', 'gris'], sin_datos: ['SIN DATOS MT5', 'rojo'], error: ['ERROR', 'rojo'],
-};
-const VALIDACION = { pendiente: ['VALIDACIÓN PENDIENTE', 'gris'], valido: ['VÁLIDO', 'verde'], fallo: ['FALLO', 'rojo'], no_activado: ['NO ACTIVADO', 'gris'], anulado: ['ANULADO', 'gris'] };
-const TIPO_EVENTO = { activacion: 'Entrada', paso: 'Paso', temporalidad: 'Temporalidad', condiciones: 'Condiciones', resolucion: 'Resultado', no_activado: 'No activado', aviso: 'Aviso' };
 const urls = new Map();   // ruta -> url firmada (caché de la sesión)
 
 export function montar(cont, ctx) {
@@ -33,7 +27,7 @@ export function montar(cont, ctx) {
 
 // ---- utilidades ---------------------------------------------------------------------------------
 const pildora = ([texto, color]) => el('span', { class: `pill pill-${color === 'azul' ? 'gris' : color}` + (color === 'azul' ? ' pill-azul' : '') }, texto);
-const estadoDe = (store, id) => store.fila('setup_estado', id);
+const pildoraEstado = s => { const e = estadoSetup(s); return pildora([e.texto, e.color]); };
 const bloqueado = s => Date.now() > Math.max(new Date(s.t0).getTime(), new Date(s.creado_en || Date.now()).getTime() + 600000);
 function rr(s) {
   const riesgo = Math.abs(s.entrada - s.sl);
@@ -73,15 +67,13 @@ function lista(cont, ctx) {
     reemplazar(filtros,
       sel('simbolo', [['', 'Todos los símbolos'], ...simbolos]),
       sel('autor', [['', 'Los dos'], ...store.perfiles().map(p => [p.id, p.nombre])]),
-      sel('estado', [['', 'Cualquier estado'], ['abiertos', 'Abiertos'], ['ganado', 'Ganados'], ['perdido', 'Perdidos'], ['no_activado', 'No activados'], ['pendiente', 'Pendientes'], ['anulado', 'Anulados']]),
+      sel('estado', [['', 'Cualquier estado'], ['por_cerrar', 'Por cerrar'], ['ganado', 'Ganados'], ['perdido', 'Perdidos'], ['breakeven', 'Breakeven'], ['cerrado_antes', 'Cerrados antes'], ['no_activado', 'No activados'], ['pendiente', 'Pendientes'], ['anulado', 'Anulados']]),
       sel('tf', [['', 'Toda temporalidad'], ...TFS]),
       sel('modo', [['', 'Tiempo y condiciones'], ['tiempo', 'Por tiempo'], ['condiciones', 'Por condiciones']]));
   }
 
   function tarjeta(s) {
-    const e = estadoDe(store, s.id);
     const autor = store.perfil(s.autor);
-    const est = s.anulado_en ? 'anulado' : e?.estado || 'pendiente';
     const fotos = store.vivas('setup_capturas', c => c.setup_id === s.id).length + store.filas('setup_eventos', x => x.setup_id === s.id && x.imagen).length;
     return el('a', { class: 'card setup-card', href: `#/setups/${s.id}` },
       el('div', { class: 'setup-cab' },
@@ -93,32 +85,30 @@ function lista(cont, ctx) {
         el('span', {}, el('b', {}, 'E '), precio(store, s, s.entrada)),
         el('span', { class: 'rojo' }, el('b', {}, 'SL '), precio(store, s, s.sl)),
         el('span', { class: 'verde' }, el('b', {}, 'TP '), precio(store, s, s.tp)),
+        ...(s.tps || []).map((x, i) => el('span', { class: 'verde' }, el('b', {}, `TP${i + 2} `), precio(store, s, x))),
         el('span', { class: 'muted' }, `R:R 1:${numero(rr(s), 1)}`)),
       el('div', { class: 'setup-pie' },
         autor && avatar(autor, 20),
         el('span', { class: 'card-sub' }, F.fmtDiaHora(s.t0)),
         el('span', { class: 'flex1' }),
         fotos ? el('span', { class: 'card-sub' }, icono('imagen'), ` ${fotos}`) : null,
-        pildora(ESTADOS[est] || ESTADOS.pendiente),
-        e && e.validacion !== 'pendiente' && !s.anulado_en ? pildora(VALIDACION[e.validacion]) : null));
+        pildoraEstado(s)));
   }
 
   function pintar() {
     pintarFiltros();
-    const abiertos = ['pendiente', 'esperando', 'en_curso', 'sin_datos'];
     const ss = store.vivas('setups').filter(s => {
-      const est = s.anulado_en ? 'anulado' : estadoDe(store, s.id)?.estado || 'pendiente';
+      const est = estadoSetup(s).clave;
       if (f.simbolo && s.simbolo !== f.simbolo) return false;
       if (f.autor && s.autor !== f.autor) return false;
       if (f.tf && s.temporalidad !== f.tf) return false;
       if (f.modo && s.modo !== f.modo) return false;
-      if (f.estado === 'abiertos' && !abiertos.includes(est)) return false;
-      if (f.estado && f.estado !== 'abiertos' && est !== f.estado) return false;
+      if (f.estado && est !== f.estado) return false;
       return true;
     }).sort((x, y) => (y.t0 || '').localeCompare(x.t0 || ''));
     reemplazar(rejilla, ss.length ? ss.map(tarjeta) : vacio('No hay setups con estos filtros. Crea el primero con «+ NUEVO SETUP».'));
   }
-  const quitar = store.on(['setups', 'setup_estado', 'setup_capturas', 'setup_eventos', 'simbolos', 'perfiles'], pintar);
+  const quitar = store.on(['setups', 'setup_capturas', 'setup_eventos', 'simbolos', 'perfiles'], pintar);
   pintar();
   return quitar;
 }
@@ -128,13 +118,14 @@ function formulario(cont, ctx, id) {
   const { store, F, navegar } = ctx;
   const s0 = id ? store.fila('setups', id) : null;
   if (id && !s0) { cont.append(vacio('Ese setup no existe.')); return; }
-  if (s0 && s0.autor !== store.usuarioId()) { cont.append(vacio('Solo su autor puede editar este setup.')); return; }
   const congelado = s0 ? bloqueado(s0) : false;
   ctx.titulo(s0 ? `Editar setup · ${s0.simbolo}` : 'Nuevo setup');
 
   const ahora = new Date(Math.ceil(Date.now() / 300000) * 300000);
   const t0 = s0 ? F.instanteAMadrid(s0.t0) : F.instanteAMadrid(ahora);
   const est = {
+    autor: s0?.autor || store.usuarioId(),
+    tps: (s0?.tps || []).map(String),   // TP2, TP3… (el TP1 es «tp», el que vigila el agente)
     dir: s0?.direccion || null,   // 'largo' (compra) | 'corto' (venta)
     tf: s0?.temporalidad || '4h',
     modo: s0?.modo || 'tiempo',
@@ -159,6 +150,8 @@ function formulario(cont, ctx, id) {
   const resumenNiveles = el('div', { class: 'resumen-niveles' });
   const fecha = el('input', { type: 'date', value: t0.dia });
   const hora = el('input', { type: 'time', value: t0.hora });
+  const autorCaja = el('div', { class: 'segmentos' });
+  const tpsCaja = el('div', { class: 'tps-extra' });
   const dirCaja = el('div', { class: 'segmentos' });
   const tfCaja = el('div', { class: 'segmentos' });
   const modoCaja = el('div', { class: 'segmentos' });
@@ -174,6 +167,22 @@ function formulario(cont, ctx, id) {
   const capturasCaja = el('div', { class: 'capturas-previa' });
   const fichero = el('input', { type: 'file', accept: 'image/*', multiple: true, class: 'oculto' });
 
+  function pintarAutor() {
+    reemplazar(autorCaja, ...store.perfiles().map(p => el('button', {
+      type: 'button', class: est.autor === p.id ? 'activo' : '', onclick: () => { est.autor = p.id; pintarAutor(); },
+    }, p.nombre)));
+  }
+  function pintarTps() {
+    reemplazar(tpsCaja,
+      ...est.tps.map((v, i) => el('div', { class: 'fila-rep' },
+        campo(`Objetivo ${i + 2} (TP${i + 2})`, el('input', { type: 'number', step: 'any', inputmode: 'decimal', value: v, disabled: congelado || null, oninput: e => { est.tps[i] = e.target.value; pintarNiveles(); } })),
+        !congelado && el('button', { type: 'button', class: 'row-btn del', title: 'Quitar este TP', onclick: () => { est.tps.splice(i, 1); pintarTps(); pintarNiveles(); } }, '×'))),
+      !congelado && el('button', { type: 'button', class: 'add-st-btn', onclick: () => { est.tps.push(''); pintarTps(); } }, '+ Añadir otro TP'));
+  }
+  function tpsMal() {
+    const e = +entrada.value;
+    return est.tps.findIndex(v => v === '' || Number.isNaN(+v) || (est.dir === 'largo' ? +v <= e : +v >= e));
+  }
   function pintarDir() {
     reemplazar(dirCaja,
       el('button', { type: 'button', class: est.dir === 'largo' ? 'activo' : '', onclick: () => { est.dir = 'largo'; pintarDir(); pintarNiveles(); } }, '▲ COMPRA'),
@@ -185,6 +194,8 @@ function formulario(cont, ctx, id) {
     if (!dir) { reemplazar(resumenNiveles, el('span', { class: 'muted' }, 'Elige si es compra o venta.')); return; }
     if (!entrada.value || !sl.value || !tp.value) { reemplazar(resumenNiveles, el('span', { class: 'muted' }, dir === 'largo' ? 'Compra: SL < entrada < TP.' : 'Venta: TP < entrada < SL.')); return; }
     const ok = dir === 'largo' ? s < e && e < t : t < e && e < s;
+    const malo = tpsMal();
+    if (ok && malo >= 0) { reemplazar(resumenNiveles, el('span', { class: 'rojo' }, `El TP${malo + 2} tiene que estar ${dir === 'largo' ? 'por encima' : 'por debajo'} de la entrada.`)); return; }
     reemplazar(resumenNiveles,
       el('span', { class: `dir dir-${dir}` }, dir === 'largo' ? '▲ LARGO' : '▼ CORTO'),
       ok ? el('span', { class: 'mono' }, `R:R 1:${numero(Math.abs(t - e) / Math.abs(e - s), 2)} · riesgo ${numero(Math.abs(e - s), 5)}`)
@@ -200,8 +211,8 @@ function formulario(cont, ctx, id) {
       el('button', { type: 'button', class: est.modo === 'tiempo' ? 'activo' : '', onclick: () => { est.modo = 'tiempo'; pintarModo(); } }, '⏱ POR TIEMPO'),
       el('button', { type: 'button', class: est.modo === 'condiciones' ? 'activo' : '', onclick: () => { est.modo = 'condiciones'; pintarModo(); } }, '⚙ POR CONDICIONES'));
     modoAyuda.textContent = est.modo === 'tiempo'
-      ? `Cuando pasen ${est.tf} (en horas de mercado) desde la hora de validación, el agente adjunta la imagen: VÁLIDO si tocó el TP antes que el SL, FALLO si tocó el SL, y «fallo en temporalidad» si no se resolvió (se sigue vigilando hasta TP o SL).`
-      : 'Se valida cuando se cumplen los pasos EN ORDEN. Si antes toca el SL o el TP, o pasa la hora límite, es FALLO. Al validarse, el agente adjunta la imagen y vigila la entrada, el TP y el SL.';
+      ? `Cuando pasen ${est.tf} (en horas de mercado) desde la hora de validación, lo cerráis vosotros en la ficha: GANADO (con el TP al que llegó), PERDIDO, BREAKEVEN o NO ACTIVADO.`
+      : 'Marcáis vosotros cada paso en la ficha, en orden, y al final el resultado: GANADO (con su TP), PERDIDO, BREAKEVEN o NO ACTIVADO.';
     bloqueCond.style.display = est.modo === 'condiciones' ? '' : 'none';
   }
 
@@ -246,11 +257,43 @@ function formulario(cont, ctx, id) {
 
   function pintarAnotaciones() {
     const ref = F.madridAInstante(fecha.value || F.hoy(), hora.value || '00:00').getTime();
-    const cerca = store.vivas('anotaciones', a => Math.abs(new Date(a.fecha_hora).getTime() - ref) < 4 * 86400000 || a.id === s0?.anotacion_id)
+    const cerca = store.vivas('anotaciones', a => Math.abs(new Date(a.fecha_hora).getTime() - ref) < 4 * 86400000 || a.id === s0?.anotacion_id || a.id === est.eventoNuevo)
       .sort((p, q) => p.fecha_hora.localeCompare(q.fecha_hora));
     const actual = anotacion.value || s0?.anotacion_id || '';
     anotacion.replaceChildren(el('option', { value: '' }, 'Ninguna'),
       ...cerca.map(a => el('option', { value: a.id, selected: a.id === actual ? 'selected' : null }, `${F.fmtDiaHora(a.fecha_hora)} · ${a.titulo}`)));
+  }
+  // escribir un evento nuevo desde aquí: se crea en Mercado y queda ligado al setup
+  function nuevoEvento() {
+    const titulo = el('input', { placeholder: 'IPC EE. UU., inventarios de crudo, Fed…' });
+    const dia = el('input', { type: 'date', value: fecha.value || F.hoy() });
+    const hh = el('input', { type: 'time', value: hora.value || '14:30' });
+    let importancia = 2;
+    const imp = el('div', { class: 'segmentos' });
+    const pintarImp = () => reemplazar(imp, ...[1, 2, 3].map(n => el('button', { type: 'button', class: importancia === n ? 'activo' : '', onclick: () => { importancia = n; pintarImp(); } }, '★'.repeat(n))));
+    pintarImp();
+    modal({
+      titulo: 'NUEVO EVENTO DE MERCADO', ancho: 460,
+      cuerpo: el('div', {}, campo('Evento', titulo),
+        el('div', { class: 'fila-campos' }, campo('Día', dia), campo('Hora (Madrid)', hh)),
+        el('div', { class: 'field' }, el('label', {}, 'Importancia'), imp),
+        el('div', { class: 'card-sub' }, 'Se guarda también en Mercado, donde luego podéis escribir el antes y el después.')),
+      botones: [{ texto: 'Cancelar' }, { texto: 'CREAR Y LIGAR', tipo: 'primario', accion: async () => {
+        if (!titulo.value.trim()) { toast('Escribe el evento.', 'err'); return false; }
+        if (!dia.value || !hh.value) { toast('Pon el día y la hora.', 'err'); return false; }
+        try {
+          const n = await store.insertar('anotaciones', {
+            titulo: titulo.value.trim(), fecha_hora: F.madridAInstante(dia.value, hh.value).toISOString(), importancia,
+            simbolos: simbolo.value ? [simbolo.value] : [], etiquetas: [], creado_por: store.usuarioId(),
+          });
+          est.eventoNuevo = n.id;
+          pintarAnotaciones();
+          anotacion.value = n.id;
+          toast('Evento creado y ligado');
+        } catch (e) { error(e); return false; }
+      } }],
+    });
+    setTimeout(() => titulo.focus(), 50);
   }
   fecha.addEventListener('change', pintarAnotaciones);
   hora.addEventListener('change', pintarAnotaciones);
@@ -284,8 +327,10 @@ function formulario(cont, ctx, id) {
         el('div', { class: 'fila-campos' },
           campo('Símbolo (nombre en MT5)', el('div', { class: 'fila-rep' }, simbolo,
             !congelado && el('button', { type: 'button', class: 'btn btn-peq', onclick: () => nuevoSimbolo(store).then(s => { if (s) { pintarSimbolos(); simbolo.value = s; } }) }, '+')))),
+        el('div', { class: 'field' }, el('label', {}, 'Quién lo ha hecho'), autorCaja),
         el('div', { class: 'field' }, el('label', {}, 'Compra o venta'), dirCaja),
         el('div', { class: 'fila-campos' }, campo('Entrada', entrada), campo('Stop (SL)', sl), campo('Objetivo (TP)', tp)),
+        tpsCaja,
         resumenNiveles,
         el('div', { class: 'field' }, el('label', {}, 'Temporalidad del setup'), tfCaja),
         el('div', { class: 'fila-campos' }, campo('Día de validación', fecha), campo('Hora de validación (Madrid)', hora)),
@@ -294,7 +339,8 @@ function formulario(cont, ctx, id) {
       el('div', { class: 'card' },
         campo('Porqué', porque),
         el('div', { class: 'field' }, el('label', {}, 'Etiquetas'), etiquetasCaja),
-        campo('Evento de mercado ligado', anotacion),
+        campo('Evento de mercado ligado', el('div', { class: 'fila-rep' }, anotacion,
+          el('button', { type: 'button', class: 'btn btn-peq', title: 'Escribir un evento nuevo', onclick: nuevoEvento }, '+'))),
         !s0 && el('div', { class: 'field' }, el('label', {}, 'Vuestra captura del setup dibujado'), capturasCaja, fichero))),
     el('div', { class: 'acciones-form' },
       el('button', { class: 'btn', onclick: () => history.back() }, 'Cancelar'),
@@ -308,11 +354,11 @@ function formulario(cont, ctx, id) {
     el('div', { class: 'fila-campos', style: { marginTop: '12px' } }, campo('Hora límite: día (opcional)', limiteF), campo('Hora límite: hora', limiteH)));
   if (congelado) bloqueCond.querySelectorAll('button, input, select').forEach(n => { n.disabled = true; });
 
-  pintarDir(); pintarNiveles(); pintarTf(); pintarModo(); pintarPasos(); pintarEtiquetas(); pintarAnotaciones(); pintarCapturas();
+  pintarAutor(); pintarTps(); pintarDir(); pintarNiveles(); pintarTf(); pintarModo(); pintarPasos(); pintarEtiquetas(); pintarAnotaciones(); pintarCapturas();
   if (congelado) { dirCaja.querySelectorAll('button').forEach(b => { b.disabled = true; }); tfCaja.querySelectorAll('button').forEach(b => { b.disabled = true; }); modoCaja.querySelectorAll('button').forEach(b => { b.disabled = true; }); }
 
   async function guardar() {
-    const datosLibres = { porque: porque.value.trim() || null, etiquetas: [...est.etiquetas], anotacion_id: anotacion.value || null };
+    const datosLibres = { autor: est.autor, porque: porque.value.trim() || null, etiquetas: [...est.etiquetas], anotacion_id: anotacion.value || null };
     try {
       if (congelado) {
         await store.actualizar('setups', { id: s0.id }, datosLibres);
@@ -325,6 +371,8 @@ function formulario(cont, ctx, id) {
       if (!entrada.value || !sl.value || !tp.value) return toast('Faltan entrada, SL o TP.', 'err');
       const e = +entrada.value, s = +sl.value, t = +tp.value;
       if (!(dir === 'largo' ? s < e && e < t : t < e && e < s)) return toast(dir === 'largo' ? 'En una compra: SL < entrada < TP.' : 'En una venta: TP < entrada < SL.', 'err');
+      const malo = tpsMal();
+      if (malo >= 0) return toast(`Revisa el TP${malo + 2}: tiene que estar ${dir === 'largo' ? 'por encima' : 'por debajo'} de la entrada.`, 'err');
       if (!fecha.value || !hora.value) return toast('Pon el día y la hora de validación.', 'err');
       let condiciones = null;
       if (est.modo === 'condiciones') {
@@ -336,7 +384,7 @@ function formulario(cont, ctx, id) {
         condiciones = { plantilla: est.plantilla, pasos: est.pasos.map(p => ({ ...p, ...(p.nivel !== undefined && p.nivel !== null ? { nivel: +p.nivel } : {}) })), limite };
       }
       const datos = {
-        simbolo: simbolo.value, direccion: dir, entrada: e, sl: s, tp: t, temporalidad: est.tf,
+        simbolo: simbolo.value, direccion: dir, entrada: e, sl: s, tp: t, tps: est.tps.map(Number), temporalidad: est.tf,
         t0: F.madridAInstante(fecha.value, hora.value).toISOString(), modo: est.modo, condiciones, ...datosLibres,
       };
       if (s0) {
@@ -344,7 +392,7 @@ function formulario(cont, ctx, id) {
         toast('Setup actualizado');
         return navegar(`setups/${s0.id}`);
       }
-      const nuevo = await store.insertar('setups', { ...datos, autor: store.usuarioId() });
+      const nuevo = await store.insertar('setups', datos);
       for (const [i, c] of est.capturas.entries()) {
         const ruta = `setups/${nuevo.id}/usuario-${Date.now()}-${i}.webp`;
         try {
@@ -396,6 +444,39 @@ function ficha(cont, ctx, id) {
     catch (e) { error(e); }
   }
 
+  function marcarResultado(s, resultado, tp = null) {
+    const antes = resultado === 'cerrado_antes';
+    const precioIn = el('input', { type: 'number', step: 'any', inputmode: 'decimal', placeholder: 'Precio al que cerrasteis' });
+    const rVivo = el('div', { class: 'card-sub mono' }, 'Pon el precio y verás las R.');
+    precioIn.addEventListener('input', () => {
+      if (precioIn.value === '') { rVivo.textContent = 'Pon el precio y verás las R.'; return; }
+      const r = rConseguido({ ...s, resultado: 'cerrado_antes', resultado_precio: +precioIn.value });
+      rVivo.textContent = r === null ? '' : `${r > 0 ? '+' : ''}${numero(r, 2)} R`;
+      rVivo.className = `card-sub mono ${r > 0 ? 'verde' : r < 0 ? 'rojo' : ''}`;
+    });
+    const nota = el('textarea', { rows: 3, placeholder: antes ? 'Por qué cerrasteis antes: noticia, cambio de estructura, parcial…' : 'Qué pasó (opcional): cómo se movió, qué aprendisteis…' });
+    const titulo = resultado === 'ganado' && (s.tps || []).length ? `GANADO · TP${tp}` : RESULTADOS[resultado][0];
+    modal({
+      titulo, ancho: 480,
+      cuerpo: el('div', {}, antes && campo('Precio de cierre', precioIn), antes && rVivo, campo('Qué pasó', nota)),
+      botones: [{ texto: 'Cancelar' }, { texto: 'GUARDAR RESULTADO', tipo: 'primario', accion: async () => {
+        if (antes && (precioIn.value === '' || Number.isNaN(+precioIn.value))) { toast('Pon el precio de cierre.', 'err'); return false; }
+        try {
+          await store.actualizar('setups', { id: s.id }, {
+            resultado, resultado_tp: tp, resultado_precio: antes ? +precioIn.value : null, resultado_nota: nota.value.trim() || null,
+            resultado_por: store.usuarioId(), resultado_en: new Date().toISOString(),
+          });
+          toast('Resultado guardado');
+        } catch (e) { error(e); return false; }
+      } }],
+    });
+  }
+  async function quitarResultado(s) {
+    if (!await confirmar('¿Quitar el resultado marcado? El setup vuelve a «por cerrar».', { si: 'Quitar' })) return;
+    try { await store.actualizar('setups', { id: s.id }, { resultado: null, resultado_tp: null, resultado_precio: null, resultado_nota: null, resultado_por: null, resultado_en: null }); }
+    catch (e) { error(e); }
+  }
+
   async function marcarPaso(s, n, marcado) {
     try {
       if (marcado) await store.quitar('setup_marcas', { setup_id: s.id, paso: n });
@@ -414,15 +495,39 @@ function ficha(cont, ctx, id) {
   };
   document.addEventListener('paste', pegar);
 
+  // ---- el resultado lo marcáis vosotros ----
+  function resultadoCard(s) {
+    const r = rConseguido(s);
+    const quien = s.resultado_por && store.perfil(s.resultado_por);
+    const cab = el('div', { class: 'chips' }, pildoraEstado(s),
+      r !== null ? el('span', { class: `mono ${r > 0 ? 'verde' : r < 0 ? 'rojo' : 'muted'}` }, `${r > 0 ? '+' : ''}${numero(r, 2)} R`) : null);
+    if (s.anulado_en) return el('div', { class: 'card estado-card' }, el('div', { class: 'card-lbl' }, 'Resultado'), cab);
+    if (s.resultado) {
+      return el('div', { class: 'card estado-card' }, el('div', { class: 'card-lbl' }, 'Resultado'), cab,
+        s.resultado === 'cerrado_antes' && el('div', { class: 'card-sub mono' }, `Cerrado a ${precio(store, s, s.resultado_precio)}`),
+        s.resultado_nota && el('div', { class: 'texto-largo nota-resultado' }, s.resultado_nota),
+        el('div', { class: 'card-sub' }, `Marcado por ${quien?.nombre || '¿?'} · ${s.resultado_en ? F.fmtDiaHora(s.resultado_en) : ''}`,
+          el('button', { class: 'enlace', onclick: () => quitarResultado(s) }, ' · cambiar')));
+    }
+    const nTps = 1 + (s.tps || []).length;
+    const ganar = Array.from({ length: nTps }, (_, i) => el('button', { class: 'btn btn-peq btn-ganado', onclick: () => marcarResultado(s, 'ganado', i + 1) },
+      nTps > 1 ? `GANADO · TP${i + 1} (${precio(store, s, nivelTp(s, i + 1))})` : 'GANADO (TP)'));
+    return el('div', { class: 'card estado-card' },
+      el('div', { class: 'card-lbl' }, 'Resultado · lo marcáis vosotros'), cab,
+      el('div', { class: 'botones-resultado' }, ...ganar,
+        el('button', { class: 'btn btn-peq btn-perdido', onclick: () => marcarResultado(s, 'perdido') }, 'PERDIDO (SL)'),
+        el('button', { class: 'btn btn-peq btn-antes', onclick: () => marcarResultado(s, 'cerrado_antes') }, 'CERRADO ANTES'),
+        el('button', { class: 'btn btn-peq', onclick: () => marcarResultado(s, 'breakeven') }, 'BREAKEVEN'),
+        el('button', { class: 'btn btn-peq', onclick: () => marcarResultado(s, 'no_activado') }, 'NO ACTIVADO')));
+  }
+
   function pintar() {
     const todo = store.setup(id);
     if (!todo || todo.setup.borrado_en) { reemplazar(raiz, vacio('Ese setup no existe o está en la papelera.')); return; }
-    const { setup: s, estado: e, eventos, capturas, marcas } = todo;
+    const { setup: s, eventos, capturas, marcas } = todo;
     ctx.titulo(`Setup · ${s.simbolo} · ${s.temporalidad}`);
     const autor = store.perfil(s.autor);
-    const mio = s.autor === store.usuarioId();
-    const est = s.anulado_en ? 'anulado' : e?.estado || 'pendiente';
-    const cumplidos = new Map((e?.pasos || []).map(p => [p.paso, p.en]));
+    const mio = !!store.usuarioId();   // los dos pueden editar, anular o borrar cualquier setup
     const dato = (lbl, val, clase = '') => el('div', { class: 'dato' }, el('div', { class: 'card-lbl' }, lbl), el('div', { class: `dato-val ${clase}` }, val));
     const anot = s.anotacion_id && store.fila('anotaciones', s.anotacion_id);
     const etiquetas = (s.etiquetas || []).map(x => store.fila('etiquetas', x)).filter(Boolean);
@@ -430,9 +535,10 @@ function ficha(cont, ctx, id) {
     const deSetup = capturas.filter(c => !esResultado(c));
     const deResultado = capturas.filter(esResultado);
     const finEstimado = new Date(s.t0).getTime() + MIN_TF[s.temporalidad] * 60000;
-    const decidido = !!e && e.validacion !== 'pendiente';
+    const decidido = !!s.resultado;
     permitidoResultado = !s.anulado_en && (decidido || (s.modo === 'tiempo' && Date.now() >= finEstimado));
     setupActual = s;
+    const fotosAgente = eventos.filter(ev => ev.imagen);
     reemplazar(raiz,
       el('div', { class: 'ficha-cab' },
         el('button', { class: 'row-btn', title: 'Volver', onclick: () => navegar('setups') }, icono('izq')),
@@ -455,30 +561,22 @@ function ficha(cont, ctx, id) {
       el('div', { class: 'g4' },
         el('div', { class: 'card' }, dato('Entrada', precio(store, s, s.entrada), 'mono')),
         el('div', { class: 'card' }, dato('Stop (SL)', precio(store, s, s.sl), 'mono rojo')),
-        el('div', { class: 'card' }, dato('Objetivo (TP)', precio(store, s, s.tp), 'mono verde')),
+        el('div', { class: 'card' }, dato((s.tps || []).length ? 'Objetivo 1 (TP1)' : 'Objetivo (TP)', precio(store, s, s.tp), 'mono verde')),
+        ...(s.tps || []).map((x, i) => el('div', { class: 'card' }, dato(`Objetivo ${i + 2} (TP${i + 2}) · R:R 1:${numero(Math.abs(x - s.entrada) / Math.abs(s.entrada - s.sl), 2)}`, precio(store, s, x), 'mono verde'))),
         el('div', { class: 'card' }, dato('R:R', `1:${numero(rr(s), 2)}`, 'mono'))),
-      el('div', { class: 'card estado-card' },
-        el('div', { class: 'chips' }, pildora(ESTADOS[est] || ESTADOS.pendiente), e && !s.anulado_en ? pildora(VALIDACION[e.validacion] || VALIDACION.pendiente) : null,
-          e?.ambiguo ? el('span', { class: 'pill pill-ambar', title: 'Entrada, SL o TP en la misma vela de 1 minuto: se cuenta de la forma conservadora' }, 'AMBIGUO') : null),
-        e?.validacion_motivo && el('div', { class: 'card-sub' }, `Motivo: ${e.validacion_motivo}`),
-        el('div', { class: 'datos-estado' },
-          s.modo === 'tiempo' && dato('Fin de la temporalidad', e?.checkpoint_en ? F.fmtDiaHora(e.checkpoint_en) : `≈ ${F.fmtDiaHora(new Date(new Date(s.t0).getTime() + MIN_TF[s.temporalidad] * 60000))}`),
-          dato('Entrada tocada', e?.activado_en ? F.fmtDiaHora(e.activado_en) : '—'),
-          dato('Resultado', e?.resultado ? `${e.resultado === 'ganado' ? 'GANADO' : 'PERDIDO'} · ${F.fmtDiaHora(e.resultado_en)}` : '—', e?.resultado === 'ganado' ? 'verde' : e?.resultado === 'perdido' ? 'rojo' : ''),
-          dato('Máx. a favor / en contra', e?.mfe_r !== null && e?.mfe_r !== undefined ? `${numero(e.mfe_r, 2)} R / ${numero(e.mae_r, 2)} R` : '—', 'mono'),
-          dato('Revisado hasta', e?.evaluado_hasta ? F.fmtDiaHora(e.evaluado_hasta) : 'aún no'))),
+      resultadoCard(s),
       s.modo === 'condiciones' && el('div', { class: 'card' },
         el('div', { class: 'card-lbl' }, 'Condiciones (en orden)'),
         el('div', { class: 'pasos-ficha' }, (s.condiciones?.pasos || []).map((p, i) => {
           const n = i + 1;
-          const hechoEn = cumplidos.get(n);
           const marca = marcas.find(m => m.paso === n);
-          return el('div', { class: `paso-ficha ${hechoEn ? 'ok' : ''}` },
+          const quien = marca && `✓ ${store.perfil(marca.marcado_por)?.nombre || ''} · ${F.fmtDiaHora(marca.marcado_en)}`;
+          return el('div', { class: `paso-ficha ${marca ? 'ok' : ''}` },
             el('span', { class: 'paso-num' }, String(n)),
             el('span', { class: 'flex1' }, textoPaso(store, s, p)),
-            p.tipo === 'manual' && !s.anulado_en
-              ? el('button', { class: `btn btn-peq ${marca ? 'btn-primario' : ''}`, onclick: () => marcarPaso(s, n, !!marca) }, marca ? `✓ ${store.perfil(marca.marcado_por)?.nombre || ''} ${F.fmtHora(marca.marcado_en)}` : 'MARCAR')
-              : el('span', { class: 'card-sub' }, hechoEn ? `✓ ${F.fmtDiaHora(hechoEn)}` : 'pendiente'));
+            s.anulado_en
+              ? el('span', { class: 'card-sub' }, quien || 'sin marcar')
+              : el('button', { class: `btn btn-peq ${marca ? 'btn-primario' : ''}`, title: marca ? 'Clic para desmarcar' : 'Marcar como cumplido', onclick: () => marcarPaso(s, n, !!marca) }, quien || 'MARCAR'));
         })),
         s.condiciones?.limite && el('div', { class: 'card-sub' }, `Hora límite: ${F.fmtDiaHora(s.condiciones.limite)}`)),
       el('div', { class: 'g2' },
@@ -505,17 +603,16 @@ function ficha(cont, ctx, id) {
             : el('div', { class: 'card-sub' }, s.modo === 'tiempo'
                 ? `Podrás añadir fotos de cómo quedó cuando pase la temporalidad (≈ ${F.fmtDiaHora(finEstimado)}).`
                 : 'Podrás añadir fotos de cómo quedó cuando se cumplan o fallen las condiciones.')),
-      el('div', { class: 'sec' }, el('span', {}, 'Lo que registró el agente')),
-      eventos.length
-        ? el('div', { class: 'eventos' }, eventos.map(ev => el('div', { class: `evento ev-${ev.tipo}` },
-            el('div', { class: 'evento-cab' }, el('span', { class: 'evento-tipo' }, TIPO_EVENTO[ev.tipo] || ev.tipo), el('span', { class: 'card-sub' }, F.fmtDiaHora(ev.en))),
-            el('div', { class: 'evento-texto' }, ev.texto),
-            ev.imagen && miniatura(ctx, ev.imagen, `${s.simbolo} · ${TIPO_EVENTO[ev.tipo] || ev.tipo} · ${F.fmtDiaHora(ev.en)} · velas de ${s.temporalidad}`),
-            ev.imagen && ev.datos?.imagen_detalle && el('button', { class: 'enlace', onclick: async () => verImagen(await url(ctx, ev.datos.imagen_detalle), `${s.simbolo} · detalle con velas pequeñas · ${F.fmtDiaHora(ev.en)}`) }, 'Ver detalle (velas pequeñas)'))))
-        : vacio(new Date(s.t0) > new Date() ? `El agente empezará a vigilarlo a las ${F.fmtHora(s.t0)} del ${F.fmtDia(s.t0)}.` : 'Aún no hay registros del agente.'));
+      el('div', { class: 'sec' }, el('span', {}, 'Fotos del agente · solo información')),
+      fotosAgente.length
+        ? el('div', { class: 'card' }, el('div', { class: 'galeria' }, fotosAgente.map(ev => el('figure', { class: 'foto' },
+            miniatura(ctx, ev.imagen, `${s.simbolo} · ${F.fmtDiaHora(ev.en)} · velas de ${s.temporalidad}`),
+            el('figcaption', { class: 'card-sub' }, F.fmtDiaHora(ev.en),
+              ev.datos?.imagen_detalle ? el('button', { class: 'enlace', onclick: async () => verImagen(await url(ctx, ev.datos.imagen_detalle), `${s.simbolo} · detalle con velas pequeñas · ${F.fmtDiaHora(ev.en)}`) }, ' · detalle') : null)))))
+        : vacio('El agente aún no ha hecho fotos de este setup.'));
   }
 
-  const quitar = store.on(['setups', 'setup_estado', 'setup_eventos', 'setup_capturas', 'setup_marcas', 'simbolos', 'etiquetas', 'anotaciones', 'perfiles'], pintar);
+  const quitar = store.on(['setups', 'setup_eventos', 'setup_capturas', 'setup_marcas', 'simbolos', 'etiquetas', 'anotaciones', 'perfiles'], pintar);
   pintar();
   return () => { quitar(); quitarHilo?.(); document.removeEventListener('paste', pegar); };
 }

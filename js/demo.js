@@ -83,7 +83,7 @@ const DEF = {
   anotaciones: u => ({ importancia: 2, pais: null, simbolos: [], etiquetas: [], antes: null, despues: null, serie_id: null, creado_por: u, creado_en: ahora(), actualizado_en: ahora(), borrado_en: null }),
   comentarios: u => ({ autor: u, creado_en: ahora(), editado_en: null, borrado_en: null }),
   simbolos: u => ({ nombre: null, mercado: null, digitos: null, descripcion: null, verificado: 'pendiente', verificado_en: null, activo: true, anadido_por: u, anadido_en: ahora() }),
-  setups: u => ({ modo: 'tiempo', condiciones: null, porque: null, etiquetas: [], anotacion_id: null, autor: u, creado_en: ahora(), actualizado_en: ahora(), anulado_en: null, anulado_motivo: null, borrado_en: null }),
+  setups: u => ({ tps: [], resultado: null, resultado_tp: null, resultado_precio: null, resultado_nota: null, resultado_por: null, resultado_en: null, modo: 'tiempo', condiciones: null, porque: null, etiquetas: [], anotacion_id: null, autor: u, creado_en: ahora(), actualizado_en: ahora(), anulado_en: null, anulado_motivo: null, borrado_en: null }),
   setup_marcas: u => ({ marcado_por: u, marcado_en: ahora() }),
   setup_capturas: u => ({ subida_por: u, subida_en: ahora(), borrado_en: null }),
 };
@@ -96,14 +96,16 @@ function validar(tabla, f, antes) {
   if (tabla === 'setups') {
     const e = +f.entrada, s = +f.sl, t = +f.tp;
     const ok = f.direccion === 'largo' ? s < e && e < t : t < e && e < s;
-    if (!ok) throw new Error('Los niveles no cuadran: en un largo SL < entrada < TP; en un corto TP < entrada < SL.');
+    const tpsOk = (f.tps || []).every(x => (f.direccion === 'largo' ? +x > e : +x < e));
+    if (!ok || !tpsOk) throw new Error('Los niveles no cuadran: en un largo SL < entrada < TP; en un corto TP < entrada < SL.');
     if (antes) {
-      if (antes.autor !== usuario()) throw new Error('No tienes permiso para esto.');
-      const congelados = ['simbolo', 'direccion', 'entrada', 'sl', 'tp', 'temporalidad', 't0', 'modo', 'condiciones'];
+      const congelados = ['simbolo', 'direccion', 'entrada', 'sl', 'tp', 'tps', 'temporalidad', 't0', 'modo', 'condiciones'];
       const cambia = congelados.some(k => JSON.stringify(antes[k]) !== JSON.stringify(f[k]));
       const limite = Math.max(new Date(antes.t0).getTime(), new Date(antes.creado_en).getTime() + 600000);
       if (cambia && Date.now() > limite) throw new Error('El setup ya está en juego: sus niveles, hora y condiciones no se pueden cambiar. Anúlalo y crea otro.');
-    } else if (f.autor !== usuario()) throw new Error('No tienes permiso para esto.');
+    }
+    // el autor puede ser cualquiera de los dos miembros (lo elige quien lo crea)
+    if (!(db.perfiles || []).some(p => p.id === f.autor)) throw new Error('No tienes permiso para esto.');
   }
   if (tabla === 'comentarios' && antes && antes.autor !== usuario()) throw new Error('No tienes permiso para esto.');
 }
@@ -261,6 +263,9 @@ function semillas() {
   const s5 = setup({ simbolo: 'EURUSD', direccion: 'corto', entrada: 1.0855, sl: 1.0880, tp: 1.0800, temporalidad: '4h', t0: t(sumarDias(d, 1), '10:00'), modo: 'tiempo', porque: 'Doble techo en 4h; validación mañana en la apertura de Londres.', autor: J });
   const est = (s, o) => ({ setup_id: s.id, estado: 'pendiente', validacion: 'pendiente', validacion_en: null, validacion_motivo: null, checkpoint_en: null, activado_en: null, resultado: null, resultado_en: null, ambiguo: false, mfe_r: null, mae_r: null, pasos: [], evaluado_hasta: ahora(), agente_version: 'demo', actualizado_en: ahora(), ...o });
   const mas = (iso, min) => new Date(new Date(iso).getTime() + min * 60000).toISOString();
+  // resultados marcados a mano (el agente ya no decide)
+  Object.assign(s1, { resultado: 'ganado', resultado_tp: 1, resultado_por: H, resultado_en: mas(s1.t0, 185) });
+  Object.assign(s4, { resultado: 'perdido', resultado_tp: null, resultado_por: J, resultado_en: mas(s4.t0, 98) });
   const ev = (s, tipo, clave, en, texto) => ({ id: uid(), setup_id: s.id, tipo, clave, en, texto, imagen: null, datos: null, creado_en: ahora() });
   return {
     perfiles: [

@@ -1,9 +1,11 @@
 // DÍA — línea del día al estilo Structured: tira de la semana, tareas sin hora, línea temporal con
 // hora y duración, marca de «ahora», eventos de mercado y setups del día (solo lectura) y bandeja.
 
-import { el, icono, chip, avatar, toast, error, reemplazar, vacio } from '../ui.js';
+import { el, icono, chip, avatar, toast, error, reemplazar, vacio, modal } from '../ui.js';
 import { ocurrencias, claveOcurrencia, describir } from '../recurrencia.js';
 import { editarTarea } from './tarea-editor.js';
+import { hiloComentarios } from './comentarios.js';
+import { estadoSetup } from '../resultado.js';
 
 const FILTRO = 'agenda-jh-filtro-dia';
 
@@ -57,6 +59,20 @@ export function montar(cont, ctx) {
     if (g) return g.color;
     return store.perfil(t.persona)?.color || '#6366f1';
   };
+
+  // 💬 abre el hilo de comentarios (tarea, evento de mercado o setup) sin salir del día
+  function botonComentarios(entidad, id, titulo) {
+    const n = store.comentarios(entidad, id).length;
+    return el('button', {
+      class: `coment-btn ${n ? 'hay' : ''}`, title: n ? `${n} comentario${n === 1 ? '' : 's'}` : 'Comentar',
+      onclick: e => {
+        e.preventDefault(); e.stopPropagation();
+        const caja = el('div', {});
+        const quitarHilo = hiloComentarios(caja, ctx, entidad, id);
+        modal({ titulo: `COMENTARIOS · ${titulo}`, ancho: 560, cuerpo: caja, alCerrar: quitarHilo });
+      },
+    }, '💬', n ? ` ${n}` : '');
+  }
 
   async function alternar(t, d) {
     const h = hechaEn(t, d);
@@ -138,6 +154,7 @@ export function montar(cont, ctx) {
           ...etiquetas.map(e => chip(e.nombre, e.color)),
           t.prioridad && el('span', { class: `obj-pri pri-${t.prioridad}` }, t.prioridad),
           quien && el('span', { class: 'hecha-por' }, `✓ ${quien.nombre} ${F.fmtHora(h.hecha_en)}`))),
+      botonComentarios('tarea', t.id, t.titulo),
       persona && avatar(persona, 22));
   }
 
@@ -192,17 +209,19 @@ export function montar(cont, ctx) {
         el('a', { class: 'evento-linea', href: '#/mercado', title: 'Ver en Mercado' },
           el('span', { class: 'evento-tipo' }, 'MERCADO'), el('span', { class: 'evento-txt' }, a.titulo),
           el('span', { class: 'estrellas' }, '★'.repeat(a.importancia)),
-          !a.despues && new Date(a.fecha_hora) < new Date() && el('span', { class: 'falta' }, 'falta el después')));
+          !a.despues && new Date(a.fecha_hora) < new Date() && el('span', { class: 'falta' }, 'falta el después'),
+          el('span', { class: 'flex1' }), botonComentarios('anotacion', a.id, a.titulo)));
     }
     const s = it.s;
-    const est = store.fila('setup_estado', s.id);
+    const est = estadoSetup(s);
     return el('div', { class: 'fila-linea' },
       el('div', { class: 'hora-linea' }, el('span', {}, hhmm(it.min))),
       el('div', { class: 'eje' }, el('span', { class: 'punto rombo', style: { '--c': '#ec4899' } })),
       el('a', { class: 'evento-linea setup', href: `#/setups/${s.id}`, title: 'Ver el setup' },
         el('span', { class: 'evento-tipo' }, 'SETUP'),
         el('span', { class: 'evento-txt' }, `${s.simbolo} · ${s.direccion === 'largo' ? '▲ largo' : '▼ corto'} · ${s.temporalidad}`),
-        est && el('span', { class: `estado-mini e-${est.estado}` }, est.estado.replace('_', ' '))));
+        el('span', { class: `estado-mini e-${est.clave}` }, est.texto),
+        el('span', { class: 'flex1' }), botonComentarios('setup', s.id, `${s.simbolo} ${s.temporalidad}`)));
   }
 
   // ---- bandeja ----
@@ -225,7 +244,7 @@ export function montar(cont, ctx) {
   }
 
   function pintar() { pintarCabecera(); pintarFiltros(); pintarDia(); pintarBandeja(); }
-  const quitar = store.on(['tareas', 'tareas_hechas', 'etiquetas', 'grupos', 'anotaciones', 'setups', 'setup_estado', 'perfiles'], pintar);
+  const quitar = store.on(['tareas', 'tareas_hechas', 'etiquetas', 'grupos', 'anotaciones', 'setups', 'perfiles', 'comentarios'], pintar);
   const reloj = setInterval(() => { if (esHoy) pintarDia(); }, 60000);
   pintar();
   return () => { quitar(); clearInterval(reloj); };
