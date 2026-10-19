@@ -10,8 +10,15 @@ import { estadoSetup, rConseguido, nivelTp, RESULTADOS, rDePrecio, rDeSalidas } 
 function campoEntradaReal(s, alCambiar) {
   return el('input', { type: 'number', step: 'any', inputmode: 'decimal', value: s.entrada, oninput: alCambiar });
 }
-/** La entrada real tiene que dejar el SL del lado correcto. */
-const entradaValida = (s, v) => v !== '' && !Number.isNaN(+v) && (s.direccion === 'largo' ? +v > s.sl : +v < s.sl);
+/** Campo «stop real» (opcional: viene el planeado). */
+function campoStopReal(s, alCambiar) {
+  return el('input', { type: 'number', step: 'any', inputmode: 'decimal', value: s.sl, oninput: alCambiar });
+}
+const AYUDA_STOP = 'El stop inicial que pusisteis de verdad. Si lo movisteis durante la operación (p. ej. a breakeven), no lo cambies aquí: pon el precio de salida.';
+const num = v => v !== '' && v !== null && v !== undefined && !Number.isNaN(+v);
+/** La entrada real tiene que dejar el stop (real o planeado) del lado correcto. */
+const entradaValida = (s, v, sl = s.sl) => num(v) && num(sl) && (s.direccion === 'largo' ? +v > +sl : +v < +sl);
+const avisoEntrada = s => `La entrada real tiene que estar ${s.direccion === 'largo' ? 'por encima' : 'por debajo'} del stop.`;
 
 const TFS = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'];
 const MIN_TF = { '1m': 1, '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240, '1d': 1440, '1w': 10080 };
@@ -459,10 +466,13 @@ function ficha(cont, ctx, id) {
     const precioIn = el('input', { type: 'number', step: 'any', inputmode: 'decimal', value: sugerido, placeholder: 'Precio al que cerrasteis' });
     const rVivo = el('div', { class: 'card-sub mono' });
     const entradaIn = campoEntradaReal(s, () => pintarR());
+    // en «perdido» la salida sigue al stop real mientras no la toquéis a mano
+    let ultimoSl = String(s.sl);
+    const stopIn = campoStopReal(s, () => { if (resultado === 'perdido' && precioIn.value === ultimoSl) precioIn.value = stopIn.value; ultimoSl = stopIn.value; pintarR(); });
     const pintarR = () => {
-      if (!entradaValida(s, entradaIn.value)) { rVivo.textContent = `La entrada real tiene que estar ${s.direccion === 'largo' ? 'por encima' : 'por debajo'} del SL (${precio(store, s, s.sl)}).`; rVivo.className = 'card-sub rojo'; return; }
+      if (!entradaValida(s, entradaIn.value, stopIn.value)) { rVivo.textContent = avisoEntrada(s); rVivo.className = 'card-sub rojo'; return; }
       if (precioIn.value === '') { rVivo.textContent = 'Pon el precio y verás las R.'; rVivo.className = 'card-sub mono'; return; }
-      const r = rDePrecio({ ...s, resultado_entrada: +entradaIn.value }, precioIn.value);
+      const r = rDePrecio({ ...s, resultado_entrada: +entradaIn.value, resultado_sl: +stopIn.value }, precioIn.value);
       rVivo.textContent = r === null ? '' : `${r > 0 ? '+' : ''}${numero(r, 2)} R`;
       rVivo.className = `card-sub mono ${r > 0 ? 'verde' : r < 0 ? 'rojo' : ''}`;
     };
@@ -475,15 +485,17 @@ function ficha(cont, ctx, id) {
     modal({
       titulo, ancho: 480,
       cuerpo: el('div', {},
-        conPrecio && el('div', { class: 'fila-campos' }, campo('Entrada real', entradaIn, 'Viene la planeada; cámbiala si entrasteis a otro precio.'), campo('Precio exacto de salida', precioIn, ayudaPrecio)),
+        conPrecio && el('div', { class: 'fila-campos' }, campo('Entrada real', entradaIn, 'Viene la planeada; cámbiala si entrasteis a otro precio.'), campo('Stop real (opcional)', stopIn, AYUDA_STOP)),
+        conPrecio && campo('Precio exacto de salida', precioIn, ayudaPrecio),
         conPrecio && rVivo, campo('Qué pasó', nota)),
       botones: [{ texto: 'Cancelar' }, { texto: 'GUARDAR RESULTADO', tipo: 'primario', accion: async () => {
-        if (conPrecio && !entradaValida(s, entradaIn.value)) { toast('Revisa la entrada real: tiene que dejar el SL del lado correcto.', 'err'); return false; }
+        if (conPrecio && !entradaValida(s, entradaIn.value, stopIn.value)) { toast('Revisa la entrada y el stop reales: el stop tiene que quedar del lado correcto.', 'err'); return false; }
         if (conPrecio && (precioIn.value === '' || Number.isNaN(+precioIn.value))) { toast('Pon el precio de salida.', 'err'); return false; }
         try {
           await store.actualizar('setups', { id: s.id }, {
             resultado, resultado_tp: tp, resultado_precio: conPrecio ? +precioIn.value : null, resultado_salidas: null,
-            resultado_entrada: conPrecio && +entradaIn.value !== s.entrada ? +entradaIn.value : null, resultado_nota: nota.value.trim() || null,
+            resultado_entrada: conPrecio && +entradaIn.value !== s.entrada ? +entradaIn.value : null,
+            resultado_sl: conPrecio && +stopIn.value !== s.sl ? +stopIn.value : null, resultado_nota: nota.value.trim() || null,
             resultado_por: store.usuarioId(), resultado_en: new Date().toISOString(),
           });
           toast('Resultado guardado');
@@ -498,14 +510,16 @@ function ficha(cont, ctx, id) {
     const filasCaja = el('div', { class: 'salidas' });
     const resumen = el('div', { class: 'resumen-salidas mono' });
     const entradaIn = campoEntradaReal(s, () => pintarFilas());
-    const conEntrada = () => ({ ...s, resultado_entrada: entradaValida(s, entradaIn.value) ? +entradaIn.value : null });
+    const stopIn = campoStopReal(s, () => pintarFilas());
+    const valido = () => entradaValida(s, entradaIn.value, stopIn.value);
+    const conEntrada = () => (valido() ? { ...s, resultado_entrada: +entradaIn.value, resultado_sl: +stopIn.value } : { ...s, sl: NaN });
     const atajos = [...Array.from({ length: 1 + (s.tps || []).length }, (_, i) => [`TP${i + 1}`, nivelTp(s, i + 1)]), ['Entrada', s.entrada], ['SL', s.sl]];
     let foco = 0;
     function pintarResumen() {
       const suma = salidas.reduce((t, x) => t + (+x.pct || 0), 0);
       const r = Math.abs(suma - 100) < 0.01 ? rDeSalidas(conEntrada(), salidas) : null;
       resumen.className = `resumen-salidas mono ${r > 0 ? 'verde' : r < 0 ? 'rojo' : ''}`;
-      if (!entradaValida(s, entradaIn.value)) { resumen.className = 'resumen-salidas rojo'; resumen.textContent = `La entrada real tiene que estar ${s.direccion === 'largo' ? 'por encima' : 'por debajo'} del SL.`; return; }
+      if (!valido()) { resumen.className = 'resumen-salidas rojo'; resumen.textContent = avisoEntrada(s); return; }
       resumen.textContent = Math.abs(suma - 100) >= 0.01 ? `Los % suman ${numero(suma, 1)} %: tienen que sumar 100 %.` : `Total: ${rTxt(r)}`;
     }
     function pintarFilas() {
@@ -526,7 +540,7 @@ function ficha(cont, ctx, id) {
       titulo: 'CIERRE CON PARCIALES', ancho: 560,
       cuerpo: el('div', {},
         el('div', { class: 'card-sub' }, 'Cada salida: el precio exacto y el % de la posición que cerrasteis ahí. Las R salen de la media ponderada.'),
-        campo('Entrada real', entradaIn, 'Viene la planeada; cámbiala si entrasteis a otro precio.'),
+        el('div', { class: 'fila-campos' }, campo('Entrada real', entradaIn, 'Viene la planeada; cámbiala si entrasteis a otro precio.'), campo('Stop real (opcional)', stopIn, AYUDA_STOP)),
         el('div', { class: 'chips atajos' }, el('span', { class: 'card-sub' }, 'Rellenar la salida seleccionada con:'),
           ...atajos.map(([txt, v]) => el('button', { type: 'button', class: 'chip', style: { '--c': '#6b6b8a' }, onclick: () => { salidas[foco].precio = String(v); pintarFilas(); } }, `${txt} ${precio(store, s, v)}`))),
         filasCaja,
@@ -534,7 +548,7 @@ function ficha(cont, ctx, id) {
         resumen, campo('Qué pasó', nota)),
       botones: [{ texto: 'Cancelar' }, { texto: 'GUARDAR RESULTADO', tipo: 'primario', accion: async () => {
         const suma = salidas.reduce((t, x) => t + (+x.pct || 0), 0);
-        if (!entradaValida(s, entradaIn.value)) { toast('Revisa la entrada real: tiene que dejar el SL del lado correcto.', 'err'); return false; }
+        if (!valido()) { toast('Revisa la entrada y el stop reales: el stop tiene que quedar del lado correcto.', 'err'); return false; }
         if (salidas.some(x => x.precio === '' || Number.isNaN(+x.precio))) { toast('A alguna salida le falta el precio.', 'err'); return false; }
         if (salidas.some(x => !(+x.pct > 0))) { toast('Cada salida necesita un % mayor que 0.', 'err'); return false; }
         if (Math.abs(suma - 100) >= 0.01) { toast(`Los % suman ${numero(suma, 1)} %: tienen que sumar 100 %.`, 'err'); return false; }
@@ -542,6 +556,7 @@ function ficha(cont, ctx, id) {
           await store.actualizar('setups', { id: s.id }, {
             resultado: 'parciales', resultado_tp: null, resultado_precio: null,
             resultado_entrada: +entradaIn.value !== s.entrada ? +entradaIn.value : null,
+            resultado_sl: +stopIn.value !== s.sl ? +stopIn.value : null,
             resultado_salidas: salidas.map(x => ({ precio: +x.precio, pct: +x.pct })), resultado_nota: nota.value.trim() || null,
             resultado_por: store.usuarioId(), resultado_en: new Date().toISOString(),
           });
@@ -553,7 +568,7 @@ function ficha(cont, ctx, id) {
 
   async function quitarResultado(s) {
     if (!await confirmar('¿Quitar el resultado marcado? El setup vuelve a «por cerrar».', { si: 'Quitar' })) return;
-    try { await store.actualizar('setups', { id: s.id }, { resultado: null, resultado_tp: null, resultado_precio: null, resultado_entrada: null, resultado_salidas: null, resultado_nota: null, resultado_por: null, resultado_en: null }); }
+    try { await store.actualizar('setups', { id: s.id }, { resultado: null, resultado_tp: null, resultado_precio: null, resultado_entrada: null, resultado_sl: null, resultado_salidas: null, resultado_nota: null, resultado_por: null, resultado_en: null }); }
     catch (e) { error(e); }
   }
 
@@ -588,6 +603,8 @@ function ficha(cont, ctx, id) {
           && el('div', { class: 'card-sub mono' }, `Salida a ${precio(store, s, s.resultado_precio)}`),
         s.resultado_entrada !== null && s.resultado_entrada !== undefined
           && el('div', { class: 'card-sub mono' }, `Entrada real ${precio(store, s, s.resultado_entrada)} (planeada ${precio(store, s, s.entrada)})`),
+        s.resultado_sl !== null && s.resultado_sl !== undefined
+          && el('div', { class: 'card-sub mono' }, `Stop real ${precio(store, s, s.resultado_sl)} (planeado ${precio(store, s, s.sl)})`),
         s.resultado === 'parciales' && el('div', { class: 'card-sub mono salidas-ficha' }, ...(s.resultado_salidas || []).map(x => {
           const r = rDePrecio(s, x.precio);
           return el('div', {}, `${numero(x.pct, 1)} % a ${precio(store, s, x.precio)} → ${r > 0 ? '+' : ''}${numero(r, 2)} R`);

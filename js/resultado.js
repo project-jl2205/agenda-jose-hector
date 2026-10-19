@@ -11,10 +11,13 @@ const hay = v => v !== null && v !== undefined && v !== '' && !Number.isNaN(+v);
 /** Entrada con la que se calculan las R: la real si la apuntasteis, si no la planeada. */
 export const entradaDe = s => (hay(s.resultado_entrada) ? +s.resultado_entrada : s.entrada);
 
+/** Stop con el que se calculan las R: el real si lo apuntasteis, si no el planeado. */
+export const slDe = s => (hay(s.resultado_sl) ? +s.resultado_sl : s.sl);
+
 /** R de salir a un precio concreto (positivo a favor, negativo en contra), con riesgo = |entrada − SL|. */
 export function rDePrecio(s, precio) {
   const e = entradaDe(s);
-  const riesgo = Math.abs(e - s.sl);
+  const riesgo = Math.abs(e - slDe(s));
   if (!riesgo || !hay(precio)) return null;
   return (s.direccion === 'largo' ? +precio - e : e - +precio) / riesgo;
 }
@@ -52,7 +55,7 @@ export function estadoSetup(s) {
 /** R conseguidas: con el precio exacto de salida si lo hay; si no, ganado = TP alcanzado, perdido = −1; breakeven = 0. */
 export function rConseguido(s) {
   const e = entradaDe(s);
-  const riesgo = Math.abs(e - s.sl);
+  const riesgo = Math.abs(e - slDe(s));
   if (s.anulado_en || !riesgo) return null;
   // si apuntasteis el precio exacto de salida, las R salen de ese precio; si no, del TP / SL
   const conPrecio = s.resultado_precio !== null && s.resultado_precio !== undefined;
