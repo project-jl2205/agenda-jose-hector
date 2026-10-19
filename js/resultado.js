@@ -6,11 +6,17 @@ export const RESULTADOS = {
   cerrado_antes: ['CERRADO ANTES', 'azul'], parciales: ['PARCIALES', 'azul'],
 };
 
-/** R de salir a un precio concreto (positivo a favor, negativo en contra). */
+const hay = v => v !== null && v !== undefined && v !== '' && !Number.isNaN(+v);
+
+/** Entrada con la que se calculan las R: la real si la apuntasteis, si no la planeada. */
+export const entradaDe = s => (hay(s.resultado_entrada) ? +s.resultado_entrada : s.entrada);
+
+/** R de salir a un precio concreto (positivo a favor, negativo en contra), con riesgo = |entrada − SL|. */
 export function rDePrecio(s, precio) {
-  const riesgo = Math.abs(s.entrada - s.sl);
-  if (!riesgo || precio === null || precio === undefined || precio === '' || Number.isNaN(+precio)) return null;
-  return (s.direccion === 'largo' ? +precio - s.entrada : s.entrada - +precio) / riesgo;
+  const e = entradaDe(s);
+  const riesgo = Math.abs(e - s.sl);
+  if (!riesgo || !hay(precio)) return null;
+  return (s.direccion === 'largo' ? +precio - e : e - +precio) / riesgo;
 }
 
 /** R de varias salidas parciales [{ precio, pct }]: media ponderada por el % de la posición. */
@@ -45,11 +51,12 @@ export function estadoSetup(s) {
 
 /** R conseguidas: con el precio exacto de salida si lo hay; si no, ganado = TP alcanzado, perdido = −1; breakeven = 0. */
 export function rConseguido(s) {
-  const riesgo = Math.abs(s.entrada - s.sl);
+  const e = entradaDe(s);
+  const riesgo = Math.abs(e - s.sl);
   if (s.anulado_en || !riesgo) return null;
   // si apuntasteis el precio exacto de salida, las R salen de ese precio; si no, del TP / SL
   const conPrecio = s.resultado_precio !== null && s.resultado_precio !== undefined;
-  if (s.resultado === 'ganado') return conPrecio ? rDePrecio(s, s.resultado_precio) : Math.abs(nivelTp(s, s.resultado_tp || 1) - s.entrada) / riesgo;
+  if (s.resultado === 'ganado') return conPrecio ? rDePrecio(s, s.resultado_precio) : Math.abs(nivelTp(s, s.resultado_tp || 1) - e) / riesgo;
   if (s.resultado === 'perdido') return conPrecio ? rDePrecio(s, s.resultado_precio) : -1;
   if (s.resultado === 'breakeven') return 0;
   if (s.resultado === 'cerrado_antes') return rDePrecio(s, s.resultado_precio);

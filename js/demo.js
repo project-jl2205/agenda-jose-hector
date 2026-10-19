@@ -83,7 +83,7 @@ const DEF = {
   anotaciones: u => ({ importancia: 2, pais: null, simbolos: [], etiquetas: [], antes: null, despues: null, serie_id: null, creado_por: u, creado_en: ahora(), actualizado_en: ahora(), borrado_en: null }),
   comentarios: u => ({ autor: u, creado_en: ahora(), editado_en: null, borrado_en: null }),
   simbolos: u => ({ nombre: null, mercado: null, digitos: null, descripcion: null, verificado: 'pendiente', verificado_en: null, activo: true, anadido_por: u, anadido_en: ahora() }),
-  setups: u => ({ tps: [], resultado: null, resultado_tp: null, resultado_precio: null, resultado_salidas: null, resultado_nota: null, resultado_por: null, resultado_en: null, modo: 'tiempo', condiciones: null, porque: null, etiquetas: [], anotacion_id: null, autor: u, creado_en: ahora(), actualizado_en: ahora(), anulado_en: null, anulado_motivo: null, borrado_en: null }),
+  setups: u => ({ tps: [], resultado: null, resultado_tp: null, resultado_precio: null, resultado_entrada: null, resultado_salidas: null, resultado_nota: null, resultado_por: null, resultado_en: null, modo: 'tiempo', condiciones: null, porque: null, etiquetas: [], anotacion_id: null, autor: u, creado_en: ahora(), actualizado_en: ahora(), anulado_en: null, anulado_motivo: null, borrado_en: null }),
   setup_marcas: u => ({ marcado_por: u, marcado_en: ahora() }),
   setup_capturas: u => ({ subida_por: u, subida_en: ahora(), borrado_en: null }),
 };

@@ -6,6 +6,13 @@ import { el, icono, campo, selector, modal, chip, toast, error, confirmar, pedir
 import { hiloComentarios } from './comentarios.js';
 import { estadoSetup, rConseguido, nivelTp, RESULTADOS, rDePrecio, rDeSalidas } from '../resultado.js';
 
+/** Campo «entrada real» (viene la planeada). Devuelve el input; avisa con alCambiar. */
+function campoEntradaReal(s, alCambiar) {
+  return el('input', { type: 'number', step: 'any', inputmode: 'decimal', value: s.entrada, oninput: alCambiar });
+}
+/** La entrada real tiene que dejar el SL del lado correcto. */
+const entradaValida = (s, v) => v !== '' && !Number.isNaN(+v) && (s.direccion === 'largo' ? +v > s.sl : +v < s.sl);
+
 const TFS = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'];
 const MIN_TF = { '1m': 1, '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240, '1d': 1440, '1w': 10080 };
 const TIPOS_PASO = [['toca', 'Toca el nivel'], ['toca_desde', 'Toca el nivel viniendo desde…'], ['cierre', 'Una vela cierra encima/debajo'], ['manual', 'Lo marcamos a mano']];
@@ -451,9 +458,11 @@ function ficha(cont, ctx, id) {
     const sugerido = resultado === 'ganado' ? nivelTp(s, tp || 1) : resultado === 'perdido' ? s.sl : '';
     const precioIn = el('input', { type: 'number', step: 'any', inputmode: 'decimal', value: sugerido, placeholder: 'Precio al que cerrasteis' });
     const rVivo = el('div', { class: 'card-sub mono' });
+    const entradaIn = campoEntradaReal(s, () => pintarR());
     const pintarR = () => {
+      if (!entradaValida(s, entradaIn.value)) { rVivo.textContent = `La entrada real tiene que estar ${s.direccion === 'largo' ? 'por encima' : 'por debajo'} del SL (${precio(store, s, s.sl)}).`; rVivo.className = 'card-sub rojo'; return; }
       if (precioIn.value === '') { rVivo.textContent = 'Pon el precio y verás las R.'; rVivo.className = 'card-sub mono'; return; }
-      const r = rDePrecio(s, precioIn.value);
+      const r = rDePrecio({ ...s, resultado_entrada: +entradaIn.value }, precioIn.value);
       rVivo.textContent = r === null ? '' : `${r > 0 ? '+' : ''}${numero(r, 2)} R`;
       rVivo.className = `card-sub mono ${r > 0 ? 'verde' : r < 0 ? 'rojo' : ''}`;
     };
@@ -465,12 +474,16 @@ function ficha(cont, ctx, id) {
     const titulo = resultado === 'ganado' && (s.tps || []).length ? `GANADO · TP${tp}` : RESULTADOS[resultado][0];
     modal({
       titulo, ancho: 480,
-      cuerpo: el('div', {}, conPrecio && campo('Precio exacto de salida', precioIn, ayudaPrecio), conPrecio && rVivo, campo('Qué pasó', nota)),
+      cuerpo: el('div', {},
+        conPrecio && el('div', { class: 'fila-campos' }, campo('Entrada real', entradaIn, 'Viene la planeada; cámbiala si entrasteis a otro precio.'), campo('Precio exacto de salida', precioIn, ayudaPrecio)),
+        conPrecio && rVivo, campo('Qué pasó', nota)),
       botones: [{ texto: 'Cancelar' }, { texto: 'GUARDAR RESULTADO', tipo: 'primario', accion: async () => {
+        if (conPrecio && !entradaValida(s, entradaIn.value)) { toast('Revisa la entrada real: tiene que dejar el SL del lado correcto.', 'err'); return false; }
         if (conPrecio && (precioIn.value === '' || Number.isNaN(+precioIn.value))) { toast('Pon el precio de salida.', 'err'); return false; }
         try {
           await store.actualizar('setups', { id: s.id }, {
-            resultado, resultado_tp: tp, resultado_precio: conPrecio ? +precioIn.value : null, resultado_salidas: null, resultado_nota: nota.value.trim() || null,
+            resultado, resultado_tp: tp, resultado_precio: conPrecio ? +precioIn.value : null, resultado_salidas: null,
+            resultado_entrada: conPrecio && +entradaIn.value !== s.entrada ? +entradaIn.value : null, resultado_nota: nota.value.trim() || null,
             resultado_por: store.usuarioId(), resultado_en: new Date().toISOString(),
           });
           toast('Resultado guardado');
@@ -484,21 +497,24 @@ function ficha(cont, ctx, id) {
     const salidas = [{ precio: '', pct: '50' }, { precio: '', pct: '50' }];
     const filasCaja = el('div', { class: 'salidas' });
     const resumen = el('div', { class: 'resumen-salidas mono' });
+    const entradaIn = campoEntradaReal(s, () => pintarFilas());
+    const conEntrada = () => ({ ...s, resultado_entrada: entradaValida(s, entradaIn.value) ? +entradaIn.value : null });
     const atajos = [...Array.from({ length: 1 + (s.tps || []).length }, (_, i) => [`TP${i + 1}`, nivelTp(s, i + 1)]), ['Entrada', s.entrada], ['SL', s.sl]];
     let foco = 0;
     function pintarResumen() {
       const suma = salidas.reduce((t, x) => t + (+x.pct || 0), 0);
-      const r = Math.abs(suma - 100) < 0.01 ? rDeSalidas(s, salidas) : null;
+      const r = Math.abs(suma - 100) < 0.01 ? rDeSalidas(conEntrada(), salidas) : null;
       resumen.className = `resumen-salidas mono ${r > 0 ? 'verde' : r < 0 ? 'rojo' : ''}`;
+      if (!entradaValida(s, entradaIn.value)) { resumen.className = 'resumen-salidas rojo'; resumen.textContent = `La entrada real tiene que estar ${s.direccion === 'largo' ? 'por encima' : 'por debajo'} del SL.`; return; }
       resumen.textContent = Math.abs(suma - 100) >= 0.01 ? `Los % suman ${numero(suma, 1)} %: tienen que sumar 100 %.` : `Total: ${rTxt(r)}`;
     }
     function pintarFilas() {
       reemplazar(filasCaja, ...salidas.map((x, i) => {
         const precioIn = el('input', { type: 'number', step: 'any', inputmode: 'decimal', class: 'entrada', placeholder: 'Precio exacto', value: x.precio,
-          onfocus: () => { foco = i; }, oninput: e => { x.precio = e.target.value; rFila.textContent = rTxt(rDePrecio(s, x.precio)); pintarResumen(); } });
+          onfocus: () => { foco = i; }, oninput: e => { x.precio = e.target.value; rFila.textContent = rTxt(rDePrecio(conEntrada(), x.precio)); pintarResumen(); } });
         const pctIn = el('input', { type: 'number', step: 'any', min: 0, max: 100, inputmode: 'decimal', class: 'entrada pct', value: x.pct,
           oninput: e => { x.pct = e.target.value; pintarResumen(); } });
-        const rFila = el('span', { class: 'mono r-fila' }, rTxt(rDePrecio(s, x.precio)));
+        const rFila = el('span', { class: 'mono r-fila' }, rTxt(rDePrecio(conEntrada(), x.precio)));
         return el('div', { class: 'salida' }, el('span', { class: 'paso-num' }, String(i + 1)), precioIn, pctIn, el('span', { class: 'muted' }, '%'), rFila,
           salidas.length > 1 && el('button', { type: 'button', class: 'row-btn del', title: 'Quitar esta salida', onclick: () => { salidas.splice(i, 1); pintarFilas(); } }, '×'));
       }));
@@ -510,6 +526,7 @@ function ficha(cont, ctx, id) {
       titulo: 'CIERRE CON PARCIALES', ancho: 560,
       cuerpo: el('div', {},
         el('div', { class: 'card-sub' }, 'Cada salida: el precio exacto y el % de la posición que cerrasteis ahí. Las R salen de la media ponderada.'),
+        campo('Entrada real', entradaIn, 'Viene la planeada; cámbiala si entrasteis a otro precio.'),
         el('div', { class: 'chips atajos' }, el('span', { class: 'card-sub' }, 'Rellenar la salida seleccionada con:'),
           ...atajos.map(([txt, v]) => el('button', { type: 'button', class: 'chip', style: { '--c': '#6b6b8a' }, onclick: () => { salidas[foco].precio = String(v); pintarFilas(); } }, `${txt} ${precio(store, s, v)}`))),
         filasCaja,
@@ -517,12 +534,14 @@ function ficha(cont, ctx, id) {
         resumen, campo('Qué pasó', nota)),
       botones: [{ texto: 'Cancelar' }, { texto: 'GUARDAR RESULTADO', tipo: 'primario', accion: async () => {
         const suma = salidas.reduce((t, x) => t + (+x.pct || 0), 0);
+        if (!entradaValida(s, entradaIn.value)) { toast('Revisa la entrada real: tiene que dejar el SL del lado correcto.', 'err'); return false; }
         if (salidas.some(x => x.precio === '' || Number.isNaN(+x.precio))) { toast('A alguna salida le falta el precio.', 'err'); return false; }
         if (salidas.some(x => !(+x.pct > 0))) { toast('Cada salida necesita un % mayor que 0.', 'err'); return false; }
         if (Math.abs(suma - 100) >= 0.01) { toast(`Los % suman ${numero(suma, 1)} %: tienen que sumar 100 %.`, 'err'); return false; }
         try {
           await store.actualizar('setups', { id: s.id }, {
             resultado: 'parciales', resultado_tp: null, resultado_precio: null,
+            resultado_entrada: +entradaIn.value !== s.entrada ? +entradaIn.value : null,
             resultado_salidas: salidas.map(x => ({ precio: +x.precio, pct: +x.pct })), resultado_nota: nota.value.trim() || null,
             resultado_por: store.usuarioId(), resultado_en: new Date().toISOString(),
           });
@@ -534,7 +553,7 @@ function ficha(cont, ctx, id) {
 
   async function quitarResultado(s) {
     if (!await confirmar('¿Quitar el resultado marcado? El setup vuelve a «por cerrar».', { si: 'Quitar' })) return;
-    try { await store.actualizar('setups', { id: s.id }, { resultado: null, resultado_tp: null, resultado_precio: null, resultado_salidas: null, resultado_nota: null, resultado_por: null, resultado_en: null }); }
+    try { await store.actualizar('setups', { id: s.id }, { resultado: null, resultado_tp: null, resultado_precio: null, resultado_entrada: null, resultado_salidas: null, resultado_nota: null, resultado_por: null, resultado_en: null }); }
     catch (e) { error(e); }
   }
 
@@ -567,6 +586,8 @@ function ficha(cont, ctx, id) {
       return el('div', { class: 'card estado-card' }, el('div', { class: 'card-lbl' }, 'Resultado'), cab,
         ['ganado', 'perdido', 'cerrado_antes'].includes(s.resultado) && s.resultado_precio !== null && s.resultado_precio !== undefined
           && el('div', { class: 'card-sub mono' }, `Salida a ${precio(store, s, s.resultado_precio)}`),
+        s.resultado_entrada !== null && s.resultado_entrada !== undefined
+          && el('div', { class: 'card-sub mono' }, `Entrada real ${precio(store, s, s.resultado_entrada)} (planeada ${precio(store, s, s.entrada)})`),
         s.resultado === 'parciales' && el('div', { class: 'card-sub mono salidas-ficha' }, ...(s.resultado_salidas || []).map(x => {
           const r = rDePrecio(s, x.precio);
           return el('div', {}, `${numero(x.pct, 1)} % a ${precio(store, s, x.precio)} → ${r > 0 ? '+' : ''}${numero(r, 2)} R`);
