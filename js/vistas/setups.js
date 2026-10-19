@@ -458,6 +458,30 @@ function ficha(cont, ctx, id) {
     catch (e) { error(e); }
   }
 
+  // capturas de validación que adjuntáis al marcar el resultado (archivo, cámara del móvil o Ctrl+V)
+  function selectorValidacion() {
+    const ficheros = [];
+    const previa = el('div', { class: 'capturas-previa' });
+    const input = el('input', { type: 'file', accept: 'image/*', multiple: true, class: 'oculto' });
+    const pintarPrevia = () => reemplazar(previa,
+      ...ficheros.map((f, i) => {
+        const u = URL.createObjectURL(f);
+        return el('div', { class: 'previa' }, el('img', { src: u, alt: 'captura de validación' }),
+          el('button', { type: 'button', class: 'row-btn del', title: 'Quitar', onclick: () => { URL.revokeObjectURL(u); ficheros.splice(i, 1); pintarPrevia(); } }, '×'));
+      }),
+      el('button', { type: 'button', class: 'add-captura', onclick: () => input.click() }, icono('imagen'), ' Añadir captura', el('span', { class: 'ayuda' }, 'o pégala con Ctrl+V')));
+    const meter = fs => { [...fs].filter(f => f.type.startsWith('image/')).forEach(f => ficheros.push(f)); pintarPrevia(); };
+    input.addEventListener('change', () => { meter(input.files); input.value = ''; });
+    const pegarAqui = ev => { const fs = [...(ev.clipboardData?.files || [])]; if (fs.length) { ev.preventDefault(); ev.stopImmediatePropagation(); meter(fs); } };
+    document.addEventListener('paste', pegarAqui, true);
+    pintarPrevia();
+    return {
+      nodo: campo('Captura de validación (opcional)', el('div', {}, previa, input), 'Cómo quedó en vuestro gráfico, con vuestros dibujos: así se puede comprobar el resultado.'),
+      ficheros,
+      cerrar: () => document.removeEventListener('paste', pegarAqui, true),
+    };
+  }
+
   function marcarResultado(s, resultado, tp = null) {
     const antes = resultado === 'cerrado_antes';
     // precio exacto de salida: en ganado viene el del TP y en perdido el del SL; se puede corregir
@@ -481,13 +505,14 @@ function ficha(cont, ctx, id) {
     const ayudaPrecio = resultado === 'ganado' ? `Viene el del TP${(s.tps || []).length ? tp : ''}; cámbialo si salió a otro precio.`
       : resultado === 'perdido' ? 'Viene el del SL; cámbialo si salió a otro precio (deslizamiento, cierre a mano…).' : null;
     const nota = el('textarea', { rows: 3, placeholder: antes ? 'Por qué cerrasteis antes: noticia, cambio de estructura, parcial…' : 'Qué pasó (opcional): cómo se movió, qué aprendisteis…' });
+    const capturas = selectorValidacion();
     const titulo = resultado === 'ganado' && (s.tps || []).length ? `GANADO · TP${tp}` : RESULTADOS[resultado][0];
     modal({
-      titulo, ancho: 480,
+      titulo, ancho: 520, alCerrar: capturas.cerrar,
       cuerpo: el('div', {},
         conPrecio && el('div', { class: 'fila-campos' }, campo('Entrada real', entradaIn, 'Viene la planeada; cámbiala si entrasteis a otro precio.'), campo('Stop real (opcional)', stopIn, AYUDA_STOP)),
         conPrecio && campo('Precio exacto de salida', precioIn, ayudaPrecio),
-        conPrecio && rVivo, campo('Qué pasó', nota)),
+        conPrecio && rVivo, campo('Qué pasó', nota), capturas.nodo),
       botones: [{ texto: 'Cancelar' }, { texto: 'GUARDAR RESULTADO', tipo: 'primario', accion: async () => {
         if (conPrecio && !entradaValida(s, entradaIn.value, stopIn.value)) { toast('Revisa la entrada y el stop reales: el stop tiene que quedar del lado correcto.', 'err'); return false; }
         if (conPrecio && (precioIn.value === '' || Number.isNaN(+precioIn.value))) { toast('Pon el precio de salida.', 'err'); return false; }
@@ -499,6 +524,7 @@ function ficha(cont, ctx, id) {
             resultado_por: store.usuarioId(), resultado_en: new Date().toISOString(),
           });
           toast('Resultado guardado');
+          if (capturas.ficheros.length) await subirFotos(ctx, s, capturas.ficheros, 'validacion');
         } catch (e) { error(e); return false; }
       } }],
     });
@@ -536,8 +562,9 @@ function ficha(cont, ctx, id) {
     }
     pintarFilas();
     const nota = el('textarea', { rows: 2, placeholder: 'Qué pasó (opcional): por qué parcialeasteis ahí…' });
+    const capturas = selectorValidacion();
     modal({
-      titulo: 'CIERRE CON PARCIALES', ancho: 560,
+      titulo: 'CIERRE CON PARCIALES', ancho: 560, alCerrar: capturas.cerrar,
       cuerpo: el('div', {},
         el('div', { class: 'card-sub' }, 'Cada salida: el precio exacto y el % de la posición que cerrasteis ahí. Las R salen de la media ponderada.'),
         el('div', { class: 'fila-campos' }, campo('Entrada real', entradaIn, 'Viene la planeada; cámbiala si entrasteis a otro precio.'), campo('Stop real (opcional)', stopIn, AYUDA_STOP)),
@@ -545,7 +572,7 @@ function ficha(cont, ctx, id) {
           ...atajos.map(([txt, v]) => el('button', { type: 'button', class: 'chip', style: { '--c': '#6b6b8a' }, onclick: () => { salidas[foco].precio = String(v); pintarFilas(); } }, `${txt} ${precio(store, s, v)}`))),
         filasCaja,
         el('button', { type: 'button', class: 'add-st-btn', onclick: () => { const resto = 100 - salidas.reduce((t, x) => t + (+x.pct || 0), 0); salidas.push({ precio: '', pct: String(Math.max(0, +resto.toFixed(2))) }); foco = salidas.length - 1; pintarFilas(); } }, '+ Añadir otra salida'),
-        resumen, campo('Qué pasó', nota)),
+        resumen, campo('Qué pasó', nota), capturas.nodo),
       botones: [{ texto: 'Cancelar' }, { texto: 'GUARDAR RESULTADO', tipo: 'primario', accion: async () => {
         const suma = salidas.reduce((t, x) => t + (+x.pct || 0), 0);
         if (!valido()) { toast('Revisa la entrada y el stop reales: el stop tiene que quedar del lado correcto.', 'err'); return false; }
@@ -561,6 +588,7 @@ function ficha(cont, ctx, id) {
             resultado_por: store.usuarioId(), resultado_en: new Date().toISOString(),
           });
           toast('Resultado guardado');
+          if (capturas.ficheros.length) await subirFotos(ctx, s, capturas.ficheros, 'validacion');
         } catch (e) { error(e); return false; }
       } }],
     });
@@ -584,14 +612,14 @@ function ficha(cont, ctx, id) {
   let setupActual = null;
   const pegar = ev => {
     const fs = [...(ev.clipboardData?.files || [])].filter(f => f.type.startsWith('image/'));
-    if (!fs.length || !permitidoResultado || !setupActual) return;
+    if (!fs.length || !permitidoResultado || !setupActual || document.querySelector('.modal-bg.open')) return;
     ev.preventDefault();
     subirFotos(ctx, setupActual, fs, 'resultado');
   };
   document.addEventListener('paste', pegar);
 
   // ---- el resultado lo marcáis vosotros ----
-  function resultadoCard(s) {
+  function resultadoCard(s, validaciones = []) {
     const r = rConseguido(s);
     const quien = s.resultado_por && store.perfil(s.resultado_por);
     const cab = el('div', { class: 'chips' }, pildoraEstado(s),
@@ -611,7 +639,16 @@ function ficha(cont, ctx, id) {
         })),
         s.resultado_nota && el('div', { class: 'texto-largo nota-resultado' }, s.resultado_nota),
         el('div', { class: 'card-sub' }, `Marcado por ${quien?.nombre || '¿?'} · ${s.resultado_en ? F.fmtDiaHora(s.resultado_en) : ''}`,
-          el('button', { class: 'enlace', onclick: () => quitarResultado(s) }, ' · cambiar')));
+          el('button', { class: 'enlace', onclick: () => quitarResultado(s) }, ' · cambiar')),
+        el('div', { class: 'card-lbl', style: { marginTop: '10px' } }, 'Capturas de validación'),
+        validaciones.length
+          ? el('div', { class: 'galeria' }, validaciones.map(c => {
+              const quienC = store.perfil(c.subida_por)?.nombre || '';
+              return el('figure', { class: 'foto' }, miniatura(ctx, c.ruta, `Validación · ${quienC} · ${c.subida_en ? F.fmtDiaHora(c.subida_en) : 'ahora'}`),
+                el('figcaption', { class: 'card-sub' }, `${quienC} · ${c.subida_en ? F.fmtDiaHora(c.subida_en) : 'ahora'}`));
+            }))
+          : el('div', { class: 'card-sub' }, 'Sin captura de validación.'),
+        subirMas(ctx, s, 'validacion'));
     }
     const nTps = 1 + (s.tps || []).length;
     const ganar = Array.from({ length: nTps }, (_, i) => el('button', { class: 'btn btn-peq btn-ganado', onclick: () => marcarResultado(s, 'ganado', i + 1) },
@@ -637,7 +674,9 @@ function ficha(cont, ctx, id) {
     const anot = s.anotacion_id && store.fila('anotaciones', s.anotacion_id);
     const etiquetas = (s.etiquetas || []).map(x => store.fila('etiquetas', x)).filter(Boolean);
     const esResultado = c => c.ruta.includes('/usuario-resultado-');
-    const deSetup = capturas.filter(c => !esResultado(c));
+    const esValidacion = c => c.ruta.includes('/usuario-validacion-');
+    const deSetup = capturas.filter(c => !esResultado(c) && !esValidacion(c));
+    const deValidacion = capturas.filter(esValidacion);
     const deResultado = capturas.filter(esResultado);
     const finEstimado = new Date(s.t0).getTime() + MIN_TF[s.temporalidad] * 60000;
     const decidido = !!s.resultado;
@@ -669,7 +708,7 @@ function ficha(cont, ctx, id) {
         el('div', { class: 'card' }, dato((s.tps || []).length ? 'Objetivo 1 (TP1)' : 'Objetivo (TP)', precio(store, s, s.tp), 'mono verde')),
         ...(s.tps || []).map((x, i) => el('div', { class: 'card' }, dato(`Objetivo ${i + 2} (TP${i + 2}) · R:R 1:${numero(Math.abs(x - s.entrada) / Math.abs(s.entrada - s.sl), 2)}`, precio(store, s, x), 'mono verde'))),
         el('div', { class: 'card' }, dato('R:R', `1:${numero(rr(s), 2)}`, 'mono'))),
-      resultadoCard(s),
+      resultadoCard(s, deValidacion),
       s.modo === 'condiciones' && el('div', { class: 'card' },
         el('div', { class: 'card-lbl' }, 'Condiciones (en orden)'),
         el('div', { class: 'pasos-ficha' }, (s.condiciones?.pasos || []).map((p, i) => {
@@ -722,14 +761,15 @@ function ficha(cont, ctx, id) {
   return () => { quitar(); quitarHilo?.(); document.removeEventListener('paste', pegar); };
 }
 
-/** Sube fotos al setup: tipo 'setup' (vuestra captura) o 'resultado' (cómo quedó el mercado). */
+/** Sube fotos al setup: tipo 'setup' (vuestra captura), 'resultado' (cómo quedó el mercado) o 'validacion' (al marcar el resultado). */
 async function subirFotos(ctx, s, ficheros, tipo) {
   const { store } = ctx;
   let n = 0;
   for (const [i, f] of [...ficheros].entries()) {
     try {
       const blob = await comprimirImagen(f);
-      const ruta = `setups/${s.id}/usuario-${tipo === 'resultado' ? 'resultado-' : ''}${Date.now()}-${i}.webp`;
+      const prefijo = tipo === 'resultado' ? 'resultado-' : tipo === 'validacion' ? 'validacion-' : '';
+      const ruta = `setups/${s.id}/usuario-${prefijo}${Date.now()}-${i}.webp`;
       await ctx.db.archivos.subir(ruta, blob, 'image/webp');
       await store.insertar('setup_capturas', { setup_id: s.id, ruta, subida_por: store.usuarioId(), subida_en: new Date().toISOString() });
       n += 1;
@@ -742,7 +782,7 @@ function subirMas(ctx, s, tipo = 'setup') {
   const input = el('input', { type: 'file', accept: 'image/*', multiple: true, class: 'oculto' });
   input.addEventListener('change', async () => { await subirFotos(ctx, s, input.files, tipo); input.value = ''; });
   return el('div', {}, input, el('button', { class: 'add-st-btn', onclick: () => input.click() },
-    tipo === 'resultado' ? '+ Añadir foto de cómo quedó (o pégala con Ctrl+V)' : '+ Añadir captura'));
+    tipo === 'resultado' ? '+ Añadir foto de cómo quedó (o pégala con Ctrl+V)' : tipo === 'validacion' ? '+ Añadir captura de validación' : '+ Añadir captura'));
 }
 
 export function textoPaso(store, s, p) {
