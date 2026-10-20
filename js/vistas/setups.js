@@ -618,10 +618,12 @@ function ficha(cont, ctx, id) {
   };
   document.addEventListener('paste', pegar);
 
-  // ---- el resultado lo marcáis vosotros ----
+  // ---- el resultado lo marca quien hizo el setup (el otro lo ve, pero no lo toca) ----
   function resultadoCard(s, validaciones = []) {
     const r = rConseguido(s);
     const quien = s.resultado_por && store.perfil(s.resultado_por);
+    const verifica = s.autor === store.usuarioId();
+    const nombreAutor = store.perfil(s.autor)?.nombre || 'quien lo hizo';
     const cab = el('div', { class: 'chips' }, pildoraEstado(s),
       r !== null ? el('span', { class: `mono ${r > 0 ? 'verde' : r < 0 ? 'rojo' : 'muted'}` }, `${r > 0 ? '+' : ''}${numero(r, 2)} R`) : null);
     if (s.anulado_en) return el('div', { class: 'card estado-card' }, el('div', { class: 'card-lbl' }, 'Resultado'), cab);
@@ -639,7 +641,7 @@ function ficha(cont, ctx, id) {
         })),
         s.resultado_nota && el('div', { class: 'texto-largo nota-resultado' }, s.resultado_nota),
         el('div', { class: 'card-sub' }, `Marcado por ${quien?.nombre || '¿?'} · ${s.resultado_en ? F.fmtDiaHora(s.resultado_en) : ''}`,
-          el('button', { class: 'enlace', onclick: () => quitarResultado(s) }, ' · cambiar')),
+          verifica && el('button', { class: 'enlace', onclick: () => quitarResultado(s) }, ' · cambiar')),
         el('div', { class: 'card-lbl', style: { marginTop: '10px' } }, 'Capturas de validación'),
         validaciones.length
           ? el('div', { class: 'galeria' }, validaciones.map(c => {
@@ -648,13 +650,17 @@ function ficha(cont, ctx, id) {
                 el('figcaption', { class: 'card-sub' }, `${quienC} · ${c.subida_en ? F.fmtDiaHora(c.subida_en) : 'ahora'}`));
             }))
           : el('div', { class: 'card-sub' }, 'Sin captura de validación.'),
-        subirMas(ctx, s, 'validacion'));
+        verifica && subirMas(ctx, s, 'validacion'));
+    }
+    if (!verifica) {
+      return el('div', { class: 'card estado-card' }, el('div', { class: 'card-lbl' }, `Resultado · lo marca ${nombreAutor}`), cab,
+        el('div', { class: 'card-sub' }, `Lo verifica ${nombreAutor}: el resultado lo marca quien hizo el setup.`));
     }
     const nTps = 1 + (s.tps || []).length;
     const ganar = Array.from({ length: nTps }, (_, i) => el('button', { class: 'btn btn-peq btn-ganado', onclick: () => marcarResultado(s, 'ganado', i + 1) },
       nTps > 1 ? `GANADO · TP${i + 1} (${precio(store, s, nivelTp(s, i + 1))})` : 'GANADO (TP)'));
     return el('div', { class: 'card estado-card' },
-      el('div', { class: 'card-lbl' }, 'Resultado · lo marcáis vosotros'), cab,
+      el('div', { class: 'card-lbl' }, 'Resultado · lo marcas tú'), cab,
       el('div', { class: 'botones-resultado' }, ...ganar,
         el('button', { class: 'btn btn-peq btn-perdido', onclick: () => marcarResultado(s, 'perdido') }, 'PERDIDO (SL)'),
         el('button', { class: 'btn btn-peq btn-antes', onclick: () => marcarResultado(s, 'cerrado_antes') }, 'CERRADO ANTES'),

@@ -14,6 +14,9 @@ vigila los setups con MT5 y el esquema de la base de datos están en el PC Windo
 - **Seguridad**: nunca `innerHTML` con texto de usuario → `ui.el()` / `textContent`.
   Nunca una clave **secreta** (`sb_secret_…`) en ningún fichero: `js/config.js` solo lleva la URL y la
   clave **publicable** (pública por diseño; protege RLS + la lista de 2 miembros).
+- **Setups: quien hace el setup es quien lo verifica.** El resultado (y su captura de validación) solo
+  lo marca el autor (`setups.autor`); el otro lo ve pero no le salen los botones. La base de datos lo impone
+  con el trigger `setups_solo_autor_verifica`: no lo quites al tocar permisos.
 - **Cambios en el modelo de datos** (tablas/columnas/permisos): se pueden hacer desde cualquiera de los
   dos ordenadores. Se preparan como SQL para pegar en el SQL Editor de Supabase y la web se publica
   DESPUÉS de aplicarlo (si no, la web pediría columnas que aún no existen). Si afecta a lo que vigila el
