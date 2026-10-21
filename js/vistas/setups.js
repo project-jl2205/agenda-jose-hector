@@ -132,6 +132,8 @@ function formulario(cont, ctx, id) {
   const { store, F, navegar } = ctx;
   const s0 = id ? store.fila('setups', id) : null;
   if (id && !s0) { cont.append(vacio('Ese setup no existe.')); return; }
+  // cada uno toca solo sus setups: el autor es siempre quien lo crea
+  if (s0 && s0.autor !== store.usuarioId()) { cont.append(vacio(`Este setup es de ${store.perfil(s0.autor)?.nombre || 'tu compañero'}: solo quien lo hizo puede editarlo.`)); return; }
   const congelado = s0 ? bloqueado(s0) : false;
   ctx.titulo(s0 ? `Editar setup · ${s0.simbolo}` : 'Nuevo setup');
 
@@ -164,7 +166,6 @@ function formulario(cont, ctx, id) {
   const resumenNiveles = el('div', { class: 'resumen-niveles' });
   const fecha = el('input', { type: 'date', value: t0.dia });
   const hora = el('input', { type: 'time', value: t0.hora });
-  const autorCaja = el('div', { class: 'segmentos' });
   const tpsCaja = el('div', { class: 'tps-extra' });
   const dirCaja = el('div', { class: 'segmentos' });
   const tfCaja = el('div', { class: 'segmentos' });
@@ -181,11 +182,6 @@ function formulario(cont, ctx, id) {
   const capturasCaja = el('div', { class: 'capturas-previa' });
   const fichero = el('input', { type: 'file', accept: 'image/*', multiple: true, class: 'oculto' });
 
-  function pintarAutor() {
-    reemplazar(autorCaja, ...store.perfiles().map(p => el('button', {
-      type: 'button', class: est.autor === p.id ? 'activo' : '', onclick: () => { est.autor = p.id; pintarAutor(); },
-    }, p.nombre)));
-  }
   function pintarTps() {
     reemplazar(tpsCaja,
       ...est.tps.map((v, i) => el('div', { class: 'fila-rep' },
@@ -341,7 +337,6 @@ function formulario(cont, ctx, id) {
         el('div', { class: 'fila-campos' },
           campo('Símbolo (nombre en MT5)', el('div', { class: 'fila-rep' }, simbolo,
             !congelado && el('button', { type: 'button', class: 'btn btn-peq', onclick: () => nuevoSimbolo(store).then(s => { if (s) { pintarSimbolos(); simbolo.value = s; } }) }, '+')))),
-        el('div', { class: 'field' }, el('label', {}, 'Quién lo ha hecho'), autorCaja),
         el('div', { class: 'field' }, el('label', {}, 'Compra o venta'), dirCaja),
         el('div', { class: 'fila-campos' }, campo('Entrada', entrada), campo('Stop (SL)', sl), campo('Objetivo (TP)', tp)),
         tpsCaja,
@@ -368,7 +363,7 @@ function formulario(cont, ctx, id) {
     el('div', { class: 'fila-campos', style: { marginTop: '12px' } }, campo('Hora límite: día (opcional)', limiteF), campo('Hora límite: hora', limiteH)));
   if (congelado) bloqueCond.querySelectorAll('button, input, select').forEach(n => { n.disabled = true; });
 
-  pintarAutor(); pintarTps(); pintarDir(); pintarNiveles(); pintarTf(); pintarModo(); pintarPasos(); pintarEtiquetas(); pintarAnotaciones(); pintarCapturas();
+  pintarTps(); pintarDir(); pintarNiveles(); pintarTf(); pintarModo(); pintarPasos(); pintarEtiquetas(); pintarAnotaciones(); pintarCapturas();
   if (congelado) { dirCaja.querySelectorAll('button').forEach(b => { b.disabled = true; }); tfCaja.querySelectorAll('button').forEach(b => { b.disabled = true; }); modoCaja.querySelectorAll('button').forEach(b => { b.disabled = true; }); }
 
   async function guardar() {
@@ -612,7 +607,7 @@ function ficha(cont, ctx, id) {
   let setupActual = null;
   const pegar = ev => {
     const fs = [...(ev.clipboardData?.files || [])].filter(f => f.type.startsWith('image/'));
-    if (!fs.length || !permitidoResultado || !setupActual || document.querySelector('.modal-bg.open')) return;
+    if (!fs.length || !permitidoResultado || !setupActual || setupActual.autor !== store.usuarioId() || document.querySelector('.modal-bg.open')) return;
     ev.preventDefault();
     subirFotos(ctx, setupActual, fs, 'resultado');
   };
@@ -675,7 +670,7 @@ function ficha(cont, ctx, id) {
     const { setup: s, eventos, capturas, marcas } = todo;
     ctx.titulo(`Setup · ${s.simbolo} · ${s.temporalidad}`);
     const autor = store.perfil(s.autor);
-    const mio = !!store.usuarioId();   // los dos pueden editar, anular o borrar cualquier setup
+    const mio = s.autor === store.usuarioId();   // cada uno edita, anula, borra, marca y verifica solo sus setups; el otro los ve
     const dato = (lbl, val, clase = '') => el('div', { class: 'dato' }, el('div', { class: 'card-lbl' }, lbl), el('div', { class: `dato-val ${clase}` }, val));
     const anot = s.anotacion_id && store.fila('anotaciones', s.anotacion_id);
     const etiquetas = (s.etiquetas || []).map(x => store.fila('etiquetas', x)).filter(Boolean);
@@ -724,7 +719,7 @@ function ficha(cont, ctx, id) {
           return el('div', { class: `paso-ficha ${marca ? 'ok' : ''}` },
             el('span', { class: 'paso-num' }, String(n)),
             el('span', { class: 'flex1' }, textoPaso(store, s, p)),
-            s.anulado_en
+            s.anulado_en || !mio
               ? el('span', { class: 'card-sub' }, quien || 'sin marcar')
               : el('button', { class: `btn btn-peq ${marca ? 'btn-primario' : ''}`, title: marca ? 'Clic para desmarcar' : 'Marcar como cumplido', onclick: () => marcarPaso(s, n, !!marca) }, quien || 'MARCAR'));
         })),
@@ -747,7 +742,7 @@ function ficha(cont, ctx, id) {
               return el('figure', { class: 'foto' }, miniatura(ctx, c.ruta, pie), el('figcaption', { class: 'card-sub' }, `${quien} · ${c.subida_en ? F.fmtDiaHora(c.subida_en) : 'ahora'}`));
             }))
           : el('div', { class: 'card-sub' }, permitidoResultado ? 'Aún no hay fotos de cómo quedó.' : ''),
-        s.anulado_en ? null
+        s.anulado_en || !mio ? null
           : permitidoResultado
             ? subirMas(ctx, s, 'resultado')
             : el('div', { class: 'card-sub' }, s.modo === 'tiempo'

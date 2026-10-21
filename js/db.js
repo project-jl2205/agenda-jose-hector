@@ -59,6 +59,9 @@ function traducir(e) {
   return new Error(m);   // p. ej. el aviso del trigger de setups, ya en español
 }
 const comprobar = ({ data, error }) => { if (error) throw traducir(error); return data; };
+// La base no da error cuando un permiso deja fuera la fila (p. ej. tocar un setup del otro): cambia 0 filas.
+// Se trata como error para que la pantalla deshaga el cambio en vez de enseñarlo como hecho.
+const algunaFila = filas => { if (Array.isArray(filas) && !filas.length) throw new Error('No se ha guardado: no tienes permiso para esto o ya no existe.'); return filas; };
 
 // ---- autenticación ------------------------------------------------------------------------------
 export const auth = {
@@ -109,8 +112,8 @@ export async function insertar(tabla, filas) {
 }
 
 export async function actualizar(tabla, claveObj, cambios) {
-  if (demo) return demo.actualizar(tabla, claveObj, cambios);
-  return comprobar(await filtrarPorClave(cli.from(tabla).update(cambios), claveObj).select());
+  if (demo) return algunaFila(await demo.actualizar(tabla, claveObj, cambios));
+  return algunaFila(comprobar(await filtrarPorClave(cli.from(tabla).update(cambios), claveObj).select()));
 }
 
 export async function upsert(tabla, filas, onConflict) {
@@ -121,7 +124,8 @@ export async function upsert(tabla, filas, onConflict) {
 export async function borrar(tabla, claveObj) {
   if (!['tareas_hechas', 'setup_marcas'].includes(tabla)) throw new Error('Esto no se borra: va a la papelera.');
   if (demo) return demo.borrar(tabla, claveObj);
-  comprobar(await filtrarPorClave(cli.from(tabla).delete(), claveObj));
+  const filas = comprobar(await filtrarPorClave(cli.from(tabla).delete(), claveObj).select());
+  if (tabla === 'setup_marcas') algunaFila(filas);   // desmarcar un paso de un setup que no es tuyo
 }
 
 export async function rpc(nombre, args) {

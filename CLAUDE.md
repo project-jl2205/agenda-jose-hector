@@ -14,9 +14,12 @@ vigila los setups con MT5 y el esquema de la base de datos están en el PC Windo
 - **Seguridad**: nunca `innerHTML` con texto de usuario → `ui.el()` / `textContent`.
   Nunca una clave **secreta** (`sb_secret_…`) en ningún fichero: `js/config.js` solo lleva la URL y la
   clave **publicable** (pública por diseño; protege RLS + la lista de 2 miembros).
-- **Setups: quien hace el setup es quien lo verifica.** El resultado (y su captura de validación) solo
-  lo marca el autor (`setups.autor`); el otro lo ve pero no le salen los botones. La base de datos lo impone
-  con el trigger `setups_solo_autor_verifica`: no lo quites al tocar permisos.
+- **Setups: cada uno toca solo los suyos** (decisión de los dos, 2026-10-20). El autor (`setups.autor`) es
+  siempre quien lo crea (no hay selector de autor) y es el único que lo edita, anula, manda a la papelera,
+  marca sus pasos «a mano», sube capturas y marca el resultado. El otro lo ve todo y puede comentarlo, pero
+  no le salen esos botones. La base de datos lo impone (permisos `autor_*` en `setups`, `setup_marcas`,
+  `setup_capturas` y `capturas_suben` en storage): no los abras a los dos al tocar permisos. Si la base
+  rechaza un cambio, `db.js` lo convierte en error para que la pantalla lo deshaga (no se queda «hecho»).
 - **Cambios en el modelo de datos** (tablas/columnas/permisos): se pueden hacer desde cualquiera de los
   dos ordenadores. Se preparan como SQL para pegar en el SQL Editor de Supabase y la web se publica
   DESPUÉS de aplicarlo (si no, la web pediría columnas que aún no existen). Si afecta a lo que vigila el
@@ -31,7 +34,8 @@ vigila los setups con MT5 y el esquema de la base de datos están en el PC Windo
 
 ## Probar y publicar
 - Probar: `python3 -m http.server 8798` y abrir **`http://127.0.0.1:8798/?demo`** (datos de ejemplo,
-  no toca los reales; dos pestañas = dos personas en vivo). Sin `?demo` usa los datos REALES.
+  no toca los reales; dos pestañas = dos personas en vivo; la demo imita los permisos de setups, pero
+  lo que dependa de la base de datos de verdad se comprueba con la real). Sin `?demo` usa los datos REALES.
 - Repeticiones: `cd tests && node probar_recurrencia.mjs` (debe dar 21/21).
 - Publicar: `python3 publicar.py "qué he cambiado"` (trae lo del otro, marca versión nueva y sube).
 - Antes de empezar a editar: `git pull`.

@@ -108,7 +108,10 @@ export function montar(cont, ctx) {
       .sort((a, b) => b.f.borrado_en.localeCompare(a.f.borrado_en)).slice(0, 60);
     reemplazar(papelera, items.length ? el('div', { class: 'card' }, el('div', { class: 'st-list' }, items.map(i => el('div', { class: 'st-item' },
       chip(i.tipo, '#6b6b8a'), el('span', { class: 'st-txt' }, i.texto), el('span', { class: 'card-sub' }, F.fmtDiaHora(i.f.borrado_en)),
-      el('button', { class: 'btn btn-peq', onclick: () => store.restaurar(i.tabla, i.f.id).then(() => toast('Restaurado')).catch(error) }, 'RESTAURAR'))))) : vacio('La papelera está vacía.'));
+      // setups y comentarios: solo los restaura quien los hizo
+      ['setups', 'comentarios'].includes(i.tabla) && i.f.autor !== store.usuarioId()
+        ? el('span', { class: 'card-sub' }, `de ${store.perfil(i.f.autor)?.nombre || 'tu compañero'}`)
+        : el('button', { class: 'btn btn-peq', onclick: () => store.restaurar(i.tabla, i.f.id).then(() => toast('Restaurado')).catch(error) }, 'RESTAURAR'))))) : vacio('La papelera está vacía.'));
   }
 
   function pintar(ts) {

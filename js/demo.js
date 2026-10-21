@@ -104,9 +104,11 @@ function validar(tabla, f, antes) {
       const limite = Math.max(new Date(antes.t0).getTime(), new Date(antes.creado_en).getTime() + 600000);
       if (cambia && Date.now() > limite) throw new Error('El setup ya está en juego: sus niveles, hora y condiciones no se pueden cambiar. Anúlalo y crea otro.');
     }
-    // el autor puede ser cualquiera de los dos miembros (lo elige quien lo crea)
-    if (!(db.perfiles || []).some(p => p.id === f.autor)) throw new Error('No tienes permiso para esto.');
+    // cada uno toca solo sus setups (como los permisos autor_* de la base real)
+    if ((antes ? antes.autor : f.autor) !== usuario() || f.autor !== usuario()) throw new Error('No tienes permiso para esto.');
   }
+  // pasos «a mano» y capturas: solo el autor del setup
+  if (['setup_marcas', 'setup_capturas'].includes(tabla) && (db.setups || []).find(s => s.id === f.setup_id)?.autor !== usuario()) throw new Error('No tienes permiso para esto.');
   if (tabla === 'comentarios' && antes && antes.autor !== usuario()) throw new Error('No tienes permiso para esto.');
 }
 
@@ -145,6 +147,7 @@ export function upsert(tabla, filas, onConflict) {
 
 export function borrar(tabla, claveObj) {
   const vieja = (db[tabla] || []).find(x => mismaClave(tabla, x, claveObj));
+  if (vieja && tabla === 'setup_marcas') validar(tabla, vieja, vieja);
   if (vieja) difundir({ tabla, tipo: 'DELETE', nueva: null, vieja });
 }
 
@@ -264,7 +267,7 @@ function semillas() {
   const est = (s, o) => ({ setup_id: s.id, estado: 'pendiente', validacion: 'pendiente', validacion_en: null, validacion_motivo: null, checkpoint_en: null, activado_en: null, resultado: null, resultado_en: null, ambiguo: false, mfe_r: null, mae_r: null, pasos: [], evaluado_hasta: ahora(), agente_version: 'demo', actualizado_en: ahora(), ...o });
   const mas = (iso, min) => new Date(new Date(iso).getTime() + min * 60000).toISOString();
   // resultados marcados a mano (el agente ya no decide)
-  Object.assign(s1, { resultado: 'ganado', resultado_tp: 1, resultado_por: H, resultado_en: mas(s1.t0, 185) });
+  Object.assign(s1, { resultado: 'ganado', resultado_tp: 1, resultado_por: J, resultado_en: mas(s1.t0, 185) });
   Object.assign(s4, { resultado: 'perdido', resultado_tp: null, resultado_por: J, resultado_en: mas(s4.t0, 98) });
   const ev = (s, tipo, clave, en, texto) => ({ id: uid(), setup_id: s.id, tipo, clave, en, texto, imagen: null, datos: null, creado_en: ahora() });
   return {
