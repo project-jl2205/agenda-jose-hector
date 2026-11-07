@@ -7,7 +7,7 @@
 //   auth.salir() ; auth.alCambiar(cb(sesion|null)) -> quitar
 //   seleccionarTodo(tabla) -> filas[] ; insertar(tabla, filas[]) -> filas[]
 //   actualizar(tabla, claveObj, cambios) -> filas[] ; upsert(tabla, filas[], onConflict) -> filas[]
-//   borrar(tabla, claveObj)  (solo tareas_hechas y setup_marcas) ; rpc(nombre, args)
+//   borrar(tabla, claveObj)  (solo tareas_hechas, setup_marcas y dias_calendario) ; rpc(nombre, args)
 //   suscribir(alCambio({tabla, tipo, nueva, vieja}), alEstado('vivo'|'conectando'|'caido')) -> quitar
 //   presencia.unirse(usuarioId, estado, alCambio(lista)) ; presencia.actualizar(estado)
 //   archivos.subir(ruta, blob, tipo) ; archivos.url(ruta, segundos) -> url firmada
@@ -52,6 +52,7 @@ function traducir(e) {
     [/Failed to fetch|NetworkError|network/i, 'Sin conexión con el servidor. Reintenta en un momento.'],
     [/duplicate key/i, 'Eso ya existe.'],
     [/violates check constraint "setups_niveles"/i, 'Los niveles no cuadran: en un largo SL < entrada < TP; en un corto TP < entrada < SL.'],
+    [/violates check constraint "notas_mercado_texto"/i, 'Una nota no puede quedar vacía ni pasar de 20.000 caracteres.'],
     [/violates check constraint/i, 'Hay un dato que no es válido.'],
     [/violates foreign key/i, 'Falta un dato relacionado (¿el símbolo existe?).'],
   ];
@@ -122,7 +123,7 @@ export async function upsert(tabla, filas, onConflict) {
 }
 
 export async function borrar(tabla, claveObj) {
-  if (!['tareas_hechas', 'setup_marcas'].includes(tabla)) throw new Error('Esto no se borra: va a la papelera.');
+  if (!['tareas_hechas', 'setup_marcas', 'dias_calendario'].includes(tabla)) throw new Error('Esto no se borra: va a la papelera.');
   if (demo) return demo.borrar(tabla, claveObj);
   const filas = comprobar(await filtrarPorClave(cli.from(tabla).delete(), claveObj).select());
   if (tabla === 'setup_marcas') algunaFila(filas);   // desmarcar un paso de un setup que no es tuyo
@@ -175,5 +176,12 @@ export const archivos = {
   async url(ruta, segundos = 3600) {
     if (demo) return demo.archivos.url(ruta);
     return comprobar(await cli.storage.from(BUCKET).createSignedUrl(ruta, segundos)).signedUrl;
+  },
+  /** {ruta: url firmada} de varias de golpe (las miniaturas de las operaciones); las que fallen no vienen. */
+  async urls(rutas, segundos = 3600) {
+    if (!rutas.length) return {};
+    if (demo) return Object.fromEntries(rutas.map(r => [r, demo.archivos.url(r)]));
+    const datos = comprobar(await cli.storage.from(BUCKET).createSignedUrls(rutas, segundos));
+    return Object.fromEntries((datos || []).filter(x => x.signedUrl && !x.error).map(x => [x.path, x.signedUrl]));
   },
 };

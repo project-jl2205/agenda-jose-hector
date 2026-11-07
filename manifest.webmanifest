@@ -1,7 +1,7 @@
 {
   "name": "Agenda Jose · Héctor",
   "short_name": "Agenda JH",
-  "description": "Agenda semanal, calendario diario, anotaciones de mercado y setups de Jose Luis y Héctor.",
+  "description": "Agenda de Jose Luis y Héctor: calendario, semana, hoy, operaciones publicadas, notas y mercado.",
   "lang": "es",
   "start_url": "./",
   "scope": "./",

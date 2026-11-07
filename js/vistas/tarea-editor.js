@@ -29,9 +29,11 @@ export function editarTarea(tarea = null, iniciales = {}) {
       etiquetas: new Set(t.etiquetas || []),
       freq: r0?.freq || (t.tipo === 'temporal' ? 'DAILY' : 'WEEKLY'),
       intervalo: r0?.intervalo || 1,
+      // «A diario» (FREQ=DAILY sin BYDAY) = ningún día marcado: si se marcara el del inicio, al guardar quedaría
+      // FREQ=DAILY;BYDAY=MO… y pasaría a ser solo ese día de la semana
       dias: new Set(
         r0 ? (r0.byday.some(b => b.n === null) ? r0.byday.filter(b => b.n === null).map(b => b.dow)
-                                               : (t.fecha ? [F.diaSemana(t.fecha)] : []))
+                                               : (r0.freq !== 'DAILY' && t.fecha ? [F.diaSemana(t.fecha)] : []))
            : [1, 2, 3, 4, 5]),
       modoMes: r0?.byday?.some(b => b.n !== null) ? 'ordinal' : 'dia',
       diaMes: r0?.bymonthday?.[0] || (t.fecha ? +t.fecha.slice(8) : 1),
@@ -44,7 +46,13 @@ export function editarTarea(tarea = null, iniciales = {}) {
     const notas = el('textarea', { rows: 2, value: t.notas || '', placeholder: 'Detalles (opcional)' });
     const fecha = el('input', { type: 'date', value: t.fecha || '' });
     const hora = el('input', { type: 'time', value: t.hora ? String(t.hora).slice(0, 5) : '' });
-    const duracion = selector([['', '—'], [15, '15 min'], [30, '30 min'], [45, '45 min'], [60, '1 h'], [90, '1 h 30'], [120, '2 h'], [180, '3 h'], [240, '4 h']], t.duracion_min || '');
+    const opcDur = [['', '—'], [15, '15 min'], [30, '30 min'], [45, '45 min'], [60, '1 h'], [90, '1 h 30'], [120, '2 h'], [180, '3 h'], [240, '4 h']];
+    const dur0 = Number(t.duracion_min) || 0;
+    if (dur0 && !opcDur.some(([v]) => v === dur0)) {   // una duración puesta en el Calendario (1 h 15, 5 h…) no se pierde al guardar aquí
+      opcDur.push([dur0, dur0 >= 60 ? `${Math.floor(dur0 / 60)} h${dur0 % 60 ? ` ${dur0 % 60}` : ''}` : `${dur0} min`]);
+      opcDur.sort((a, b) => (a[0] === '' ? -1 : b[0] === '' ? 1 : a[0] - b[0]));
+    }
+    const duracion = selector(opcDur, dur0 || '');
     const hasta = el('input', { type: 'date', value: t.hasta || '' });
     const persona = selector([['', 'Los dos'], ...store.perfiles().map(p => [p.id, p.nombre])], t.persona || '');
     const prioridad = selector([['', '—'], 'URGENTE', 'ALTA', 'MEDIA'], t.prioridad || '');

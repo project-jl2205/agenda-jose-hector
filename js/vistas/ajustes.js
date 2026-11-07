@@ -1,4 +1,5 @@
 // AJUSTES — perfil, estado del agente, etiquetas, símbolos, papelera, instalar en el móvil y salir.
+// En la v2 «Fluido» (ctx.v2) no salen el agente de setups ni los símbolos: allí Setups = solo operaciones publicadas (7-nov).
 
 import { el, campo, selector, modal, chip, toast, error, confirmar, reemplazar, vacio, avatar } from '../ui.js';
 import { nuevoSimbolo } from './setups.js';
@@ -10,14 +11,16 @@ const PAPELERA = [['grupos', 'Grupo', g => g.nombre], ['tareas', 'Tarea', t => t
 
 export function montar(cont, ctx) {
   const { store, F, db } = ctx;
+  const v2 = !!ctx.v2;
+  const PAPEL = v2 ? [...PAPELERA.filter(([t]) => t !== 'setups'), ['notas_mercado', 'Nota', n => String(n.texto || '').split('\n')[0].slice(0, 60)]] : PAPELERA;
   ctx.titulo('Ajustes');
   const perfil = el('div', {}), agente = el('div', {}), etiquetas = el('div', {}), simbolos = el('div', {}), papelera = el('div', {});
   cont.append(
     el('div', { class: 'g2' },
       el('div', {}, el('div', { class: 'sec' }, el('span', {}, 'Tu perfil')), perfil),
-      el('div', {}, el('div', { class: 'sec' }, el('span', {}, 'Agente de setups')), agente)),
+      !v2 && el('div', {}, el('div', { class: 'sec' }, el('span', {}, 'Agente de setups')), agente)),
     el('div', { class: 'sec' }, el('span', {}, 'Etiquetas por campo')), etiquetas,
-    el('div', { class: 'sec' }, el('span', {}, 'Símbolos')), simbolos,
+    !v2 && el('div', { class: 'sec' }, el('span', {}, 'Símbolos')), !v2 && simbolos,
     el('div', { class: 'sec' }, el('span', {}, 'Papelera')), papelera,
     el('div', { class: 'sec' }, el('span', {}, 'Instalar en el móvil')),
     el('div', { class: 'card texto-largo' },
@@ -104,7 +107,7 @@ export function montar(cont, ctx) {
   }
 
   function pintarPapelera() {
-    const items = PAPELERA.flatMap(([tabla, tipo, texto]) => store.filas(tabla, f => f.borrado_en).map(f => ({ tabla, tipo, texto: texto(f), f })))
+    const items = PAPEL.flatMap(([tabla, tipo, texto]) => store.filas(tabla, f => f.borrado_en).map(f => ({ tabla, tipo, texto: texto(f), f })))
       .sort((a, b) => b.f.borrado_en.localeCompare(a.f.borrado_en)).slice(0, 60);
     reemplazar(papelera, items.length ? el('div', { class: 'card' }, el('div', { class: 'st-list' }, items.map(i => el('div', { class: 'st-item' },
       chip(i.tipo, '#6b6b8a'), el('span', { class: 'st-txt' }, i.texto), el('span', { class: 'card-sub' }, F.fmtDiaHora(i.f.borrado_en)),
@@ -116,10 +119,11 @@ export function montar(cont, ctx) {
 
   function pintar(ts) {
     if (!ts || ts.has('perfiles')) pintarPerfil();
-    pintarAgente(); pintarEtiquetas(); pintarSimbolos(); pintarPapelera();
+    if (!v2) { pintarAgente(); pintarSimbolos(); }
+    pintarEtiquetas(); pintarPapelera();
   }
-  const quitar = store.on(['perfiles', 'agente_estado', 'etiquetas', 'simbolos', 'grupos', 'tareas', 'anotaciones', 'setups', 'herramientas', 'comentarios'], pintar);
-  const reloj = setInterval(pintarAgente, 30000);
+  const quitar = store.on(['perfiles', 'agente_estado', 'etiquetas', 'simbolos', 'grupos', 'tareas', 'anotaciones', 'setups', 'herramientas', 'comentarios', 'notas_mercado'], pintar);
+  const reloj = v2 ? 0 : setInterval(pintarAgente, 30000);
   pintar();
   return () => { quitar(); clearInterval(reloj); };
 }

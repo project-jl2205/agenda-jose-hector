@@ -53,6 +53,7 @@ export function montar(cont, ctx) {
   const tareasDelDia = d => store.vivas('tareas', t => (t.fecha || t.rrule) && pasaFiltro(t) && ocurrencias(t, d, d).length > 0);
   const hechaEn = (t, d) => store.hecha(t.id, claveOcurrencia(t, d));
   const colorDe = t => {
+    if (/^#[0-9a-f]{6}$/i.test(t.color || '')) return t.color;   // el color propio (elegido en el Calendario de la v2) manda
     const e = (t.etiquetas || []).map(id => store.fila('etiquetas', id)).find(Boolean);
     if (e) return e.color;
     const g = t.grupo_id && store.fila('grupos', t.grupo_id);

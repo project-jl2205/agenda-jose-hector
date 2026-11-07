@@ -15,7 +15,7 @@ const blobs = new Map();
 const ahora = () => new Date().toISOString();
 const uid = () => crypto.randomUUID();
 
-const PK = { tareas_hechas: ['tarea_id', 'ocurrencia'], notas_semana: ['semana', 'slot'], setup_marcas: ['setup_id', 'paso'], setup_estado: ['setup_id'], simbolos: ['simbolo'] };
+const PK = { tareas_hechas: ['tarea_id', 'ocurrencia'], notas_semana: ['semana', 'slot'], setup_marcas: ['setup_id', 'paso'], setup_estado: ['setup_id'], simbolos: ['simbolo'], dias_calendario: ['fecha'], noticias_ocultas: ['usuario', 'noticia_id'] };
 const pk = t => PK[t] || ['id'];
 const mismaClave = (t, a, b) => pk(t).every(k => String(a[k]) === String(b[k]));
 
@@ -25,12 +25,18 @@ const usuario = () => { try { return sessionStorage.getItem(SESION); } catch { r
 
 export async function iniciar() {
   db = cargar() || semillas();
+  if (!db.operaciones) {   // una demo guardada de antes de las operaciones (tanda 4): se le añaden las de ejemplo
+    const J = (db.perfiles || []).find(p => p.email === 'jose@demo')?.id;
+    db.operaciones = J ? OPS_DEMO.map(d => opDemo(d, J)) : [];
+    db.operacion_dibujos = [];
+  }
   guardar();
+  prepararArchivosDemo();
   if ('BroadcastChannel' in window) {
     canal = new BroadcastChannel('agenda-jh-demo');
     canal.onmessage = ev => {
       const m = ev.data;
-      if (m?.tipo === 'cambio') { aplicarLocal(m.cambio); oyentes.forEach(cb => cb(m.cambio)); }
+      if (m?.tipo === 'cambio') { aplicarLocal(m.cambio); if (esMio(m.cambio)) oyentes.forEach(cb => cb(m.cambio)); }
       else if (m?.tipo === 'presencia') recibirPresencia(m);
     };
   }
@@ -46,17 +52,27 @@ function aplicarLocal({ tabla, tipo, nueva, vieja }) {
   guardar();
 }
 
+// lo privado (noticias quitadas, notas de mercado) solo le llega a su dueño, como hace la RLS de Supabase en tiempo real
+const PRIVADAS = { noticias_ocultas: 'usuario', notas_mercado: 'autor' };
+const esMio = ({ tabla, nueva, vieja }) => !PRIVADAS[tabla] || (nueva || vieja)?.[PRIVADAS[tabla]] === usuario();
+
 function difundir(cambio) {
   aplicarLocal(cambio);
-  oyentes.forEach(cb => cb(cambio));
+  if (esMio(cambio)) oyentes.forEach(cb => cb(cambio));
   canal?.postMessage({ tipo: 'cambio', cambio });
 }
 
-// El "agente" del demo solo deja el latido al día (no lee MT5).
+// El "agente" del demo solo deja los latidos al día (no lee MT5 ni el Calendario Alpha): setups y noticias clave.
 function latidoAgente() {
-  const fila = { id: 'setups', latido: ahora(), mt5_ok: true, reloj_ok: true, version: 'demo', ultimo_error: null, ultimo_error_en: null, detalle: { nota: 'Modo demo: no hay agente leyendo MT5.' } };
-  const existe = (db.agente_estado || []).some(f => f.id === 'setups');
-  difundir({ tabla: 'agente_estado', tipo: existe ? 'UPDATE' : 'INSERT', nueva: fila, vieja: fila });
+  const comunes = { latido: ahora(), version: 'demo', ultimo_error: null, ultimo_error_en: null };
+  const filas = [
+    { id: 'setups', ...comunes, mt5_ok: true, reloj_ok: true, detalle: { nota: 'Modo demo: no hay agente leyendo MT5.' } },
+    { id: 'noticias', ...comunes, mt5_ok: null, reloj_ok: null, detalle: { calendario_ok: true, comprobadas_en: ahora(), nota: 'Modo demo: noticias de ejemplo.' } },
+  ];
+  for (const fila of filas) {
+    const existe = (db.agente_estado || []).some(f => f.id === fila.id);
+    difundir({ tabla: 'agente_estado', tipo: existe ? 'UPDATE' : 'INSERT', nueva: fila, vieja: fila });
+  }
 }
 
 // ---- autenticación ----
@@ -76,7 +92,7 @@ export const auth = {
 const DEF = {
   etiquetas: u => ({ color: '#6366f1', ambito: 'todas', creado_por: u, creado_en: ahora(), borrado_en: null }),
   grupos: u => ({ prioridad: 'ALTA', color: '#f59e0b', orden: 0, persona: null, origen_grupo_id: null, creado_por: u, creado_en: ahora(), actualizado_en: ahora(), borrado_en: null }),
-  tareas: u => ({ notas: null, grupo_id: null, persona: null, prioridad: null, etiquetas: [], tipo: 'puntual', fecha: null, hora: null, duracion_min: null, rrule: null, hasta: null, orden: 0, origen_tarea_id: null, creado_por: u, creado_en: ahora(), actualizado_en: ahora(), borrado_en: null }),
+  tareas: u => ({ notas: null, grupo_id: null, persona: null, prioridad: null, etiquetas: [], tipo: 'puntual', fecha: null, hora: null, duracion_min: null, rrule: null, hasta: null, orden: 0, origen_tarea_id: null, color: null, es_evento: false, excepciones: [], creado_por: u, creado_en: ahora(), actualizado_en: ahora(), borrado_en: null }),
   tareas_hechas: u => ({ ocurrencia: '1970-01-01', hecha_por: u, hecha_en: ahora() }),
   notas_semana: u => ({ texto: '', editado_por: u, editado_en: ahora() }),
   herramientas: () => ({ categoria: null, gastado: 0, presupuesto: 0, moneda: '€', estado: 'ACTIVO', color: '#6366f1', orden: 0, actualizado_en: ahora(), borrado_en: null }),
@@ -86,6 +102,10 @@ const DEF = {
   setups: u => ({ tps: [], resultado: null, resultado_tp: null, resultado_precio: null, resultado_entrada: null, resultado_sl: null, resultado_salidas: null, resultado_nota: null, resultado_por: null, resultado_en: null, modo: 'tiempo', condiciones: null, porque: null, etiquetas: [], anotacion_id: null, autor: u, creado_en: ahora(), actualizado_en: ahora(), anulado_en: null, anulado_motivo: null, borrado_en: null }),
   setup_marcas: u => ({ marcado_por: u, marcado_en: ahora() }),
   setup_capturas: u => ({ subida_por: u, subida_en: ahora(), borrado_en: null }),
+  dias_calendario: u => ({ importancia: 0, color: null, nota: null, editado_por: u, editado_en: ahora() }),
+  noticias_ocultas: u => ({ usuario: u, oculta: true, oculta_en: ahora() }),
+  notas_mercado: u => ({ autor: u, creada_en: ahora(), editada_en: null, borrado_en: null }),
+  operacion_dibujos: u => ({ autor: u, texto: null, creado_en: ahora(), actualizado_en: ahora(), borrado_en: null }),
 };
 
 function validar(tabla, f, antes) {
@@ -110,9 +130,35 @@ function validar(tabla, f, antes) {
   // pasos «a mano» y capturas: solo el autor del setup
   if (['setup_marcas', 'setup_capturas'].includes(tabla) && (db.setups || []).find(s => s.id === f.setup_id)?.autor !== usuario()) throw new Error('No tienes permiso para esto.');
   if (tabla === 'comentarios' && antes && antes.autor !== usuario()) throw new Error('No tienes permiso para esto.');
+  // noticias quitadas: cada uno solo las suyas; las noticias clave solo las escribe el agente (como la RLS del SQL 003)
+  if (tabla === 'noticias_ocultas' && f.usuario !== usuario()) throw new Error('No tienes permiso para esto.');
+  if (tabla === 'noticias_clave') throw new Error('No tienes permiso para esto.');
+  // operaciones (SQL 005): las publica el PC de Jose Luis; desde la web su autor solo toca la papelera
+  if (tabla === 'operaciones') {
+    if (!antes) throw new Error('No tienes permiso para esto.');
+    const cambia = Object.keys({ ...antes, ...f }).some(k => !['borrado_en', 'actualizado_en'].includes(k) && JSON.stringify(antes[k]) !== JSON.stringify(f[k]));
+    if (cambia || antes.autor !== usuario()) throw new Error('No tienes permiso para esto.');
+  }
+  // dibujos sobre una operación: cada uno los suyos; tipo, puntos, color y texto como los CHECK del SQL 005
+  if (tabla === 'operacion_dibujos') {
+    if (f.autor !== usuario() || (antes && antes.autor !== usuario())) throw new Error('No tienes permiso para esto.');
+    const n = { linea: 2, flecha: 2, cuadro: 2, texto: 1 }[f.tipo];
+    const ok = n && Array.isArray(f.puntos) && f.puntos.length === n && f.puntos.every(q => q && typeof q.t === 'number' && typeof q.p === 'number')
+      && /^#[0-9a-f]{6}$/i.test(f.color || '') && (f.texto == null || String(f.texto).length <= 140);
+    if (!ok) throw new Error('Hay un dato que no es válido.');
+    if (!antes && (db.operaciones || []).find(o => o.id === f.operacion_id)?.borrado_en !== null) throw new Error('No tienes permiso para esto.');
+  }
+  // notas de mercado: cada uno solo las suyas, y nunca vacías ni de más de 20.000 caracteres (SQL 004)
+  if (tabla === 'notas_mercado') {
+    if (f.autor !== usuario() || (antes && antes.autor !== usuario())) throw new Error('No tienes permiso para esto.');
+    if (!String(f.texto ?? '').trim() || String(f.texto).length > 20000) throw new Error('Una nota no puede quedar vacía ni pasar de 20.000 caracteres.');
+  }
 }
 
-export function seleccionar(tabla) { return structuredClone(db[tabla] || []); }
+export function seleccionar(tabla) {
+  const filas = db[tabla] || [];
+  return structuredClone(PRIVADAS[tabla] ? filas.filter(f => f[PRIVADAS[tabla]] === usuario()) : filas);
+}
 
 export function insertar(tabla, filas) {
   const u = usuario();
@@ -132,7 +178,13 @@ export function actualizar(tabla, claveObj, cambios) {
   if (!antes) return [];
   const nueva = { ...antes, ...cambios };
   if ('actualizado_en' in antes) nueva.actualizado_en = ahora();
-  if (tabla === 'notas_semana') { nueva.editado_en = ahora(); nueva.editado_por = usuario(); }
+  if (tabla === 'notas_semana' || tabla === 'dias_calendario') { nueva.editado_en = ahora(); nueva.editado_por = usuario(); }
+  if (tabla === 'operacion_dibujos') { nueva.autor = antes.autor; nueva.operacion_id = antes.operacion_id; nueva.creado_en = antes.creado_en; }
+  if (tabla === 'notas_mercado') {   // como el disparador del SQL 004: la hora de la nota y su dueño no cambian al corregirla
+    nueva.autor = antes.autor;
+    nueva.creada_en = antes.creada_en;
+    nueva.editada_en = nueva.texto !== antes.texto ? ahora() : antes.editada_en;
+  }
   validar(tabla, nueva, antes);
   difundir({ tabla, tipo: 'UPDATE', nueva, vieja: antes });
   return [structuredClone(nueva)];
@@ -317,5 +369,80 @@ function semillas() {
       ev(s4, 'temporalidad', 'temporalidad', mas(s4.t0, 240), 'A las 4 h: SL tocado antes del plazo. Fallo.'),
     ],
     agente_estado: [],
+    // noticias clave de ejemplo, con el mismo formato que las reales (las sube el agente desde el Calendario Alpha:
+    // agente/noticias.py)
+    noticias_clave: [
+      { id: 'vdemo1', value_id: 1, event_id: 'demo-ipc', pais: 'US', titulo: 'IPC EE. UU.', detalle: 'Prev. 3,0 % · Ant. 2,9 %', color: '#ff453a', hora: t(sumarDias(lunes, 2), '14:30'), sin_hora: false, actualizado_en: ahora() },
+      { id: 'vdemo2', value_id: 2, event_id: 'demo-bce', pais: 'EU', titulo: 'Tipos de interés · BCE', detalle: 'Cons. 2,00 % · Ant. 2,00 %', color: '#ff453a', hora: t(sumarDias(lunes, 3), '14:15'), sin_hora: false, actualizado_en: ahora() },
+      { id: 'vdemo3', value_id: 3, event_id: 'demo-nfp', pais: 'US', titulo: 'Nóminas no agrícolas EE. UU.', detalle: 'Prev. 120 K · Ant. 98 K', color: '#ff453a', hora: t(sumarDias(lunes, 4), '14:30'), sin_hora: false, actualizado_en: ahora() },
+    ],
+    dias_calendario: [],
+    noticias_ocultas: [],
+    operaciones: OPS_DEMO.map(d => opDemo(d, J)),
+    operacion_dibujos: [],
   };
+}
+
+// ---- operaciones publicadas de ejemplo (en la real las sube el PC de Jose Luis: herramientas/operaciones_agenda.py) ----
+// INVENTADAS (el repositorio es público: nunca capturas ni cifras reales). Las velas y la captura se generan en el
+// navegador al arrancar, siempre iguales para la misma operación. Horas = «del servidor» en segundos, como en MT5.
+const OPS_DEMO = [
+  { id: '1000001-501', simbolo: 'USDCHFc', direccion: 'corto', base: 0.8180, paso: 0.00028, dg: 5, dias: 1.2, horas: 0.8, vol: 0.35, gana: true },
+  { id: '1000001-502', simbolo: 'ETHUSD', direccion: 'corto', base: 2260, paso: 2.6, dg: 2, dias: 3.4, horas: 2.2, vol: 1, gana: true },
+  { id: '1000001-503', simbolo: 'US100.cash', direccion: 'largo', base: 25200, paso: 11, dg: 2, dias: 2.3, horas: 1.1, vol: 0.5, gana: false },
+  { id: '1000001-504', simbolo: 'XAUUSD', direccion: 'largo', base: 4010, paso: 1.9, dg: 2, dias: 0.6, horas: 3, vol: 0.2, gana: true },
+];
+function azar(semilla) {
+  let a = semilla >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const tiemposDemo = d => { const t0 = Math.floor((Date.now() / 1000 - d.dias * 86400) / 300) * 300; return [t0, t0 + Math.round(d.horas * 12) * 300]; };
+// velas de 5 min (15 días antes de la entrada → 12 h después de la salida) con un paseo al azar que, entre la entrada y la
+// salida, va a favor (ganadora) o en contra; las de 1 h salen de juntarlas. Solo 3 días de 5 min, como guarda el Terminal.
+function velasDemo(d, t0, t1) {
+  const r = azar(Number(d.id.split('-')[1]) * 7919), dg = d.dg, sg = d.direccion === 'largo' ? 1 : -1, M5 = [];
+  const ini = t0 - 15 * 86400, fin = t1 + 12 * 3600, n1 = Math.max(1, (t1 - t0) / 300), deriva = (d.gana ? 1 : -1) * sg * d.paso * 2.2;
+  let c = d.base;
+  for (let t = ini; t <= fin; t += 300) {
+    const o = c, empuje = t > t0 && t <= t1 ? deriva * 6 / n1 : 0;
+    c = o + d.paso * (r() - 0.5) * 2 + empuje;
+    const h = Math.max(o, c) + d.paso * r() * 0.8, l = Math.min(o, c) - d.paso * r() * 0.8, rd = x => +x.toFixed(dg);
+    M5.push([t, rd(o), rd(h), rd(l), rd(c)]);
+  }
+  const H1 = []; let cur = null;
+  for (const [t, o, h, l, c2] of M5) {
+    const b = Math.floor(t / 3600) * 3600;
+    if (!cur || cur[0] !== b) { cur && H1.push(cur); cur = [b, o, h, l, c2]; } else { cur[2] = Math.max(cur[2], h); cur[3] = Math.min(cur[3], l); cur[4] = c2; }
+  }
+  cur && H1.push(cur);
+  return { s: d.simbolo, digits: dg, M5: M5.filter(x => x[0] >= t0 - 3 * 86400), H1 };
+}
+function opDemo(d, autor) {
+  const [t0, t1] = tiemposDemo(d), V = velasDemo(d, t0, t1), sg = d.direccion === 'largo' ? 1 : -1;
+  const cierre = t => (V.M5.find(x => x[0] >= t) || V.M5[V.M5.length - 1])[4];
+  const entrada = cierre(t0), salida = cierre(t1), mov = (salida - entrada) * sg, riesgo = Math.abs(salida - entrada) / (d.gana ? 1.6 : 1) || d.paso * 10;
+  const r = +(mov / riesgo).toFixed(3), resultado = +(r * 50).toFixed(2);
+  return { id: d.id, autor, cuenta: 1000001, posicion: Number(d.id.split('-')[1]), simbolo: d.simbolo, direccion: d.direccion, t_entrada: t0, t_salida: t1,
+    entrada, salida, volumen: d.vol, sl0: +(entrada - sg * riesgo).toFixed(d.dg), tp0: +(entrada + sg * riesgo * 2).toFixed(d.dg), r, resultado,
+    comision: +(-d.vol * 3.5).toFixed(2), swap: 0, moneda: 'USD', estado: 'cerrada', motivo: d.gana ? 'tp' : 'sl', porque: null, etiquetas: [], temporalidad: null,
+    captura: `operaciones/${d.id}.svg`, velas: `operaciones/${d.id}.velas.json`, publicada_en: ahora(), borrado_en: null, actualizado_en: ahora() };
+}
+function capturaDemo(V, o) {   // una «captura» de ejemplo: la línea del precio alrededor de la operación, con entrada y salida
+  const L = V.M5.filter(x => x[0] >= o.t_entrada - 5 * 3600 && x[0] <= o.t_salida + 3 * 3600);
+  const lo = Math.min(...L.map(x => x[3]), o.sl0, o.tp0), hi = Math.max(...L.map(x => x[2]), o.sl0, o.tp0), W = 800, H = 450;
+  const X = t => 30 + (t - L[0][0]) / (L[L.length - 1][0] - L[0][0]) * (W - 60), Y = p => 30 + (hi - p) / (hi - lo || 1) * (H - 60);
+  const linea = (p, c) => `<line x1="30" x2="${W - 30}" y1="${Y(p).toFixed(1)}" y2="${Y(p).toFixed(1)}" stroke="${c}" stroke-dasharray="6 5" stroke-width="1.5"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="100%" height="100%" fill="#0b0b0f"/>`
+    + linea(o.sl0, '#ff453a') + linea(o.tp0, '#30d158') + linea(o.entrada, '#f5f5f7')
+    + `<polyline fill="none" stroke="#64d2ff" stroke-width="2" points="${L.map(x => `${X(x[0]).toFixed(1)},${Y(x[4]).toFixed(1)}`).join(' ')}"/>`
+    + `<circle cx="${X(o.t_entrada).toFixed(1)}" cy="${Y(o.entrada).toFixed(1)}" r="7" fill="#f5f5f7"/><circle cx="${X(o.t_salida).toFixed(1)}" cy="${Y(o.salida).toFixed(1)}" r="7" fill="${o.resultado >= 0 ? '#30d158' : '#ff453a'}"/>`
+    + `<text x="${W / 2}" y="${H - 12}" fill="#6b6b78" font-family="Inter,Segoe UI,sans-serif" font-size="15" text-anchor="middle">${o.simbolo} · captura de ejemplo (modo demo)</text></svg>`;
+}
+function prepararArchivosDemo() {
+  for (const o of db.operaciones || []) {
+    const d = OPS_DEMO.find(x => x.id === o.id); if (!d || blobs.has(o.velas)) continue;
+    const V = velasDemo(d, o.t_entrada, o.t_salida);
+    blobs.set(o.velas, URL.createObjectURL(new Blob([JSON.stringify(V)], { type: 'application/json' })));
+    blobs.set(o.captura, URL.createObjectURL(new Blob([capturaDemo(V, o)], { type: 'image/svg+xml' })));
+  }
 }

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<script>/* tus colores y la isla quitada, antes del primer pintado (personales: solo en este dispositivo) */
+try { var t = JSON.parse(localStorage.getItem('agenda-jh-tema')), ok = function (c) { return /^#[0-9a-f]{6}$/i.test(c || ''); };
+  if (t && ok(t.bg) && ok(t.card) && ok(t.barra)) { var s = document.documentElement.style; s.setProperty('--bg', t.bg); s.setProperty('--card', t.card); s.setProperty('--barra', t.barra); }
+  if (localStorage.getItem('agenda-jh-isla') === 'quitada') document.documentElement.classList.add('arranca-sin-isla');
+} catch (e) { }</script>
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Agenda JH">
+<meta name="robots" content="noindex, nofollow">
+<title>Agenda Jose · Héctor</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../iconos/icono-192.png">
+<link rel="apple-touch-icon" href="../iconos/icono-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/vistas.css">
+<link rel="stylesheet" href="css/fluido.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+</head>
+<body>
+<div id="app"><div class="cargando">Cargando…</div></div>
+<noscript>Esta app necesita JavaScript.</noscript>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

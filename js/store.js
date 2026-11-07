@@ -14,10 +14,16 @@ export const TABLAS = [
   'perfiles', 'etiquetas', 'grupos', 'tareas', 'tareas_hechas', 'notas_semana', 'herramientas',
   'anotaciones', 'comentarios', 'simbolos', 'setups', 'setup_marcas', 'setup_capturas',
   'setup_estado', 'setup_eventos', 'agente_estado',
+  'dias_calendario', 'noticias_clave', 'noticias_ocultas',   // SQL 003 (calendario)
+  'notas_mercado',                                             // SQL 004 (notas de mercado, cada uno las suyas)
+  'operaciones', 'operacion_dibujos',                          // SQL 005 (operaciones publicadas desde el Terminal)
 ];
+// si una de estas faltara en la base (SQL sin aplicar), la agenda arranca igual sin ella en vez de no arrancar
+const OPCIONALES = new Set(['dias_calendario', 'noticias_clave', 'noticias_ocultas', 'notas_mercado', 'operaciones', 'operacion_dibujos']);
 const PK = {
   tareas_hechas: ['tarea_id', 'ocurrencia'], notas_semana: ['semana', 'slot'],
   setup_marcas: ['setup_id', 'paso'], setup_estado: ['setup_id'], simbolos: ['simbolo'],
+  dias_calendario: ['fecha'], noticias_ocultas: ['usuario', 'noticia_id'],
 };
 const pk = t => PK[t] || ['id'];
 export const claveDe = (tabla, fila) => pk(tabla).map(k => String(fila?.[k])).join('|');
@@ -27,6 +33,7 @@ const datos = new Map(TABLAS.map(t => [t, new Map()]));
 const oyentes = new Map(TABLAS.map(t => [t, new Set()]));
 let pendientes = new Set();
 let programado = false;
+const faltan = new Set();   // tablas opcionales que la base aún no tiene (su SQL sin aplicar)
 let usuarioId = null;
 
 function emitir(tablas) {
@@ -53,7 +60,10 @@ function poner(tabla, fila) { datos.get(tabla).set(claveDe(tabla, fila), fila); 
 
 export const store = {
   async cargarTodo() {
-    const res = await Promise.all(TABLAS.map(t => db.seleccionarTodo(t).then(f => [t, f])));
+    const res = await Promise.all(TABLAS.map(t => db.seleccionarTodo(t)
+      .then(f => { faltan.delete(t); return f; },
+        e => { if (!OPCIONALES.has(t)) throw e; console.warn(`Tabla ${t} no disponible:`, e?.message || e); faltan.add(t); return []; })
+      .then(f => [t, f])));
     for (const [t, filas] of res) {
       const m = new Map();
       for (const f of filas) m.set(claveDe(t, f), f);
@@ -61,6 +71,8 @@ export const store = {
     }
     emitir(TABLAS);
   },
+  /** false si es una tabla opcional que la base aún no tiene (p. ej. notas_mercado antes del SQL 004). */
+  disponible(tabla) { return !faltan.has(tabla); },
 
   /** Cambio llegado por tiempo real (o eco de lo propio). */
   aplicar({ tabla, tipo, nueva, vieja }) {

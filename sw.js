@@ -1,8 +1,12 @@
 // Service worker: guarda el esqueleto de la app para que abra rápido e instalable.
 // Nunca guarda datos de Supabase (eso va siempre por la red, con su sesión).
-const VERSION = 'agenda-jh-v2';
+// 7-nov-2026: la agenda es la v2 «Fluido» (v2/); index.html la abre y la de antes sigue en clasica.html.
+const VERSION = 'agenda-jh-v3';
 const ESQUELETO = [
-  './', './index.html', './manifest.webmanifest', './css/base.css', './css/vistas.css',
+  './v2/', './v2/index.html', './v2/css/fluido.css', './v2/js/app.js', './v2/js/motor.js',
+  './v2/js/vistas/calendario.js', './v2/js/vistas/semana.js', './v2/js/vistas/hoy.js', './v2/js/vistas/notas.js',
+  './v2/js/vistas/operaciones.js', './v2/vendor/lightweight-charts.standalone.production.js',
+  './', './index.html', './clasica.html', './manifest.webmanifest', './css/base.css', './css/vistas.css',
   './js/app.js', './js/config.js', './js/db.js', './js/demo.js', './js/store.js', './js/fechas.js',
   './js/recurrencia.js', './js/ui.js',
   './js/vistas/semana.js', './js/vistas/dia.js', './js/vistas/mercado.js', './js/vistas/setups.js',

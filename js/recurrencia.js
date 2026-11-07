@@ -5,6 +5,7 @@
 //   BYDAY=1FR,-1MO (MONTHLY: n-ésimo día de la semana del mes; negativo = desde el final)
 //   BYMONTHDAY=15,-1 (MONTHLY)
 // DTSTART = tarea.fecha. El fin es el menor de tarea.hasta, UNTIL y el rango pedido.
+// tarea.excepciones (SQL 003) = días sueltos quitados de una rutina: no salen nunca (como EXDATE).
 // Semana empezando en lunes (WKST=MO, como dateutil por defecto).
 
 import { sumarDias, diaSemana, diferenciaDias, diasDelMes } from './fechas.js';
@@ -88,7 +89,8 @@ export function ocurrencias(tarea, desde, hasta) {
       }
     }
   }
-  return [...salida].sort();
+  const quitados = new Set(tarea.excepciones || []);
+  return [...salida].filter(d => !quitados.has(d)).sort();
 }
 
 function diasDelMesSegunRegla(r, y, m, diaInicio) {

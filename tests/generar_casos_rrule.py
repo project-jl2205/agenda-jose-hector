@@ -2,7 +2,7 @@
 La web (js/recurrencia.js) debe dar exactamente las mismas: ver probar_recurrencia.mjs."""
 import json, sys
 from datetime import date, datetime
-from dateutil.rrule import rrulestr
+from dateutil.rrule import rrulestr, rruleset
 
 CASOS = [
     ("FREQ=DAILY", "2026-10-01", None, "2026-10-10", "2026-10-20"),
@@ -26,16 +26,24 @@ CASOS = [
     ("FREQ=WEEKLY;BYDAY=SA,SU;UNTIL=20261115", "2026-10-01", None, "2026-10-01", "2026-12-31"),
     ("FREQ=DAILY;INTERVAL=7", "2026-03-25", None, "2026-03-20", "2026-04-30"),
     ("FREQ=WEEKLY;INTERVAL=2", "2026-12-30", None, "2026-12-01", "2027-02-28"),
+    # días quitados de una rutina (tareas.excepciones, SQL 003) = EXDATE de dateutil
+    ("FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", "2026-11-02", None, "2026-11-01", "2026-11-30", ["2026-11-12", "2026-11-20"]),
+    ("FREQ=DAILY", "2026-11-01", None, "2026-11-05", "2026-11-15", ["2026-11-01", "2026-11-07", "2026-11-15"]),
+    ("FREQ=MONTHLY;BYDAY=1FR", "2026-10-01", None, "2026-10-01", "2027-03-31", ["2026-12-04"]),
 ]
 
-def esperado(regla, inicio, hasta, desde, fin):
+def esperado(regla, inicio, hasta, desde, fin, excepciones=()):
     d0 = datetime.fromisoformat(inicio)
-    r = rrulestr(regla, dtstart=d0)
+    r = rruleset()
+    r.rrule(rrulestr(regla, dtstart=d0))
+    for x in excepciones:
+        r.exdate(datetime.fromisoformat(x))
     a, b = datetime.fromisoformat(desde), datetime.fromisoformat(fin)
     if hasta:
         b = min(b, datetime.fromisoformat(hasta))
     return [x.date().isoformat() for x in r.between(a, b, inc=True)]
 
-salida = [{"rrule": c[0], "fecha": c[1], "hasta": c[2], "desde": c[3], "fin": c[4], "esperado": esperado(*c)} for c in CASOS]
+salida = [{"rrule": c[0], "fecha": c[1], "hasta": c[2], "desde": c[3], "fin": c[4], "excepciones": list(c[5]) if len(c) > 5 else [],
+           "esperado": esperado(*c)} for c in CASOS]
 json.dump(salida, open(sys.argv[1], "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 print(f"{len(salida)} casos -> {sys.argv[1]}")
