@@ -11,7 +11,7 @@ import { store } from '../../js/store.js';
 import * as ui from '../../js/ui.js';
 import * as F from '../../js/fechas.js';
 import { ocurrencias, claveOcurrencia } from '../../js/recurrencia.js';
-import { Muelle, QUIETO, EASE, DUR, brilloTarjetas } from './motor.js';
+import { Muelle, QUIETO, EASE, DUR, brilloTarjetas, zonaArriba } from './motor.js';
 
 const { el } = ui;
 
@@ -103,7 +103,7 @@ function asegurarCampo() {
   const pegado = a.closest('[data-pegado-abajo]');
   if (pegado) { (pegado.closest('[data-hasta-el-final]') || pegado).scrollIntoView({ block: 'end', behavior: 'instant' }); return; }
   const vv = window.visualViewport, arriba = vv ? vv.offsetTop : 0, alto = vv ? vv.height : innerHeight, r = a.getBoundingClientRect();
-  if (r.bottom > arriba + alto - 12 || r.top < arriba + 76) a.scrollIntoView({ block: r.height > alto - 110 ? 'start' : 'nearest', behavior: 'instant' });
+  if (r.bottom > arriba + alto - 12 || r.top < arriba + 76 + zonaArriba()) a.scrollIntoView({ block: r.height > alto - 110 ? 'start' : 'nearest', behavior: 'instant' });
   // corregir algo que ese campo pegado abajo taparía (una nota de la lista): la página sube hasta dejarlo encima de él
   const tapa = paginaActual?.querySelector('[data-pegado-abajo]');
   if (tapa) { const r2 = a.getBoundingClientRect(), lim = tapa.getBoundingClientRect().top - 10; if (r2.bottom > lim) scrollBy({ top: r2.bottom - lim, behavior: 'instant' }); }

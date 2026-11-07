@@ -9,7 +9,7 @@
 // Ruta: #/calendario[/AAAA-MM]
 
 import { ocurrencias, claveOcurrencia, describir } from '../../../js/recurrencia.js';
-import { Muelle, QUIETO, EASE, DUR, detener } from '../motor.js';
+import { Muelle, QUIETO, EASE, DUR, detener, zonaArriba } from '../motor.js';
 
 const IMP = [
   { n: 'Normal', c: null }, { n: 'A tener en cuenta', c: '#0a84ff' }, { n: 'Importante', c: '#ffd60a' },
@@ -595,7 +595,7 @@ export function montar(cont, ctx) {
     document.body.append(velo, el);
     el.querySelectorAll('.hd-nota').forEach(crecer);
     el.querySelector('.hd-filas')._html = filasHTML(f);
-    const disp = () => innerHeight - (movil ? 24 : 80);
+    const disp = () => innerHeight - (movil ? 24 : 80) - zonaArriba();   // la hoja nunca sube por debajo de la hora del iPhone
     const natural = () => {                         // alto del contenido (en .scroll, scrollHeight no baja del alto de la caja: no encogía)
       const d = el.querySelector('.dentro'), st = d.scrollTop;
       d.style.height = 'auto'; const h = d.scrollHeight; d.style.height = ''; d.scrollTop = st;

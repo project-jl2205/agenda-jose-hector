@@ -739,3 +739,22 @@ body.escribiendo .nt-comp{bottom:0}
 /* la demo quitaba a todos los botones el aspecto del navegador (fondo gris y borde); en la v2, solo aquí y sin peso (:where):
    cualquier clase (.pastilla, .dp-b, .op-del…) sigue mandando */
 :where(.v-ops, .visor-op) button{background:none;border:0;padding:0;margin:0;cursor:pointer;color:inherit;font:inherit;text-align:inherit}
+
+/* ===== iPhone con la agenda abierta desde el icono (8-nov, por una captura de Jose Luis: el visor quedaba debajo de la hora) =====
+   A pantalla completa («black-translucent» + viewport-fit=cover) la página va también por debajo de la barra del sistema (hora,
+   cobertura, batería) y, en apaisado, del notch. Nada fijo se queda ahí: lo de arriba baja lo que mide esa barra (0 en el PC y
+   en el navegador normal) y lo de los lados se aparta del notch. */
+:root{--sa-t:env(safe-area-inset-top,0px);--sa-r:env(safe-area-inset-right,0px);--sa-l:env(safe-area-inset-left,0px)}
+.isla-pos{top:calc(12px + var(--sa-t))}
+.esquina{top:calc(12px + var(--sa-t));right:calc(16px + var(--sa-r))}
+.techo{height:calc(80px + var(--sa-t))}
+.marco{padding-top:calc(88px + var(--sa-t));padding-left:calc(20px + var(--sa-l));padding-right:calc(20px + var(--sa-r))}
+.tema{top:calc(62px + var(--sa-t));right:calc(16px + var(--sa-r))}
+.visor-op{padding:calc(24px + var(--sa-t)) calc(24px + var(--sa-r)) 24px calc(24px + var(--sa-l))}
+@media(max-width:820px){
+  .marco{padding-top:calc(72px + var(--sa-t));padding-left:calc(14px + var(--sa-l));padding-right:calc(14px + var(--sa-r))}
+  .visor-op{padding:var(--sa-t) var(--sa-r) 0 var(--sa-l)}
+}
+@media(max-width:600px){.esquina{top:calc(16px + var(--sa-t));right:calc(10px + var(--sa-r))}
+  /* en el móvil los botones van en columna bajo la esquina: el panel se queda a su izquierda (antes los tapaba a los dos) */
+  .tema{top:calc(58px + var(--sa-t));right:calc(52px + var(--sa-r));width:calc(100vw - 62px - var(--sa-l) - var(--sa-r))}}

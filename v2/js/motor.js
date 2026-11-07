@@ -59,6 +59,17 @@ export class Muelle {
 
 export const EASE = () => getComputedStyle(document.documentElement).getPropertyValue('--muelle').trim() || 'cubic-bezier(.3,1.4,.5,1)';
 export const DUR = () => parseInt(getComputedStyle(document.documentElement).getPropertyValue('--muelle-d'), 10) || 500;
+// lo que mide la barra del sistema por arriba (iPhone con la agenda abierta desde el icono: la página va por debajo de la hora);
+// 0 en el PC. Se mide con una sonda de altura var(--sa-t) (= env(safe-area-inset-top), ver fluido.css)
+let sondaSA = null;
+export function zonaArriba() {
+  if (!sondaSA?.isConnected) {
+    sondaSA = document.createElement('div');
+    sondaSA.style.cssText = 'position:fixed;top:0;left:0;width:0;height:var(--sa-t,0px);visibility:hidden;pointer-events:none';
+    document.body.append(sondaSA);
+  }
+  return sondaSA.offsetHeight || 0;
+}
 
 /** Número que rueda con muelle hasta su valor nuevo. */
 export function rodar(nodo, a, sufijo = '') {
