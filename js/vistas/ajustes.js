@@ -28,12 +28,34 @@ export function montar(cont, ctx) {
       el('p', {}, el('b', {}, 'iPhone (Safari): '), 'abre la web → botón Compartir (cuadrado con flecha) → «Añadir a pantalla de inicio».'),
       el('p', { class: 'card-sub' }, 'Se abre a pantalla completa como una app. Los datos son los mismos que en el PC y se actualizan solos.')),
     el('div', { style: { marginTop: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' } },
+      el('button', { class: 'btn', onclick: cambiarClave }, 'CAMBIAR CONTRASEÑA'),
       el('button', { class: 'btn btn-peligro', onclick: async () => { if (await confirmar('¿Salir de la agenda en este dispositivo?', { si: 'Salir' })) { await db.auth.salir(); location.reload(); } } }, 'SALIR'),
       db.enDemo() && el('button', { class: 'btn', onclick: async () => {
         if (!await confirmar('¿Borrar los datos del modo demo de este navegador y volver a los de ejemplo?', { si: 'Reiniciar demo', peligro: true })) return;
         try { localStorage.removeItem('agenda-jh-demo-v1'); } catch { /* nada */ }
         location.reload();
       } }, 'REINICIAR DEMO')));
+
+  // 8-nov: cambiar la contraseña sin saber la anterior (la sesión abierta ya demuestra quién eres).
+  function cambiarClave() {
+    const c1 = el('input', { type: 'password', autocomplete: 'new-password' });
+    const c2 = el('input', { type: 'password', autocomplete: 'new-password' });
+    modal({
+      titulo: 'Cambiar contraseña', ancho: 440,
+      cuerpo: el('div', {},
+        el('p', { class: 'card-sub', style: { marginBottom: '14px' } }, 'Entras con el correo ', el('b', {}, store.usuario()?.email || ''), '. No hace falta la contraseña de antes.'),
+        campo('Contraseña nueva', c1, 'Mínimo 6 caracteres.'), campo('Repítela', c2)),
+      botones: [
+        { texto: 'Cancelar' },
+        { texto: 'Guardar', tipo: 'primario', accion: async () => {
+          if (c1.value.length < 6) throw new Error('Mínimo 6 caracteres.');
+          if (c1.value !== c2.value) throw new Error('Las contraseñas no coinciden.');
+          await db.auth.cambiarClave(c1.value);
+          toast(db.enDemo() ? 'Modo demo: aquí no hay contraseñas de verdad' : 'Contraseña cambiada');
+        } },
+      ],
+    });
+  }
 
   function pintarPerfil() {
     const yo = store.usuario();

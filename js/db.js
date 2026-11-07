@@ -5,6 +5,7 @@
 //   iniciar() -> { modo: 'supabase' | 'demo' }
 //   auth.sesion() -> { usuarioId, email } | null ; auth.entrar(email, clave) ; auth.registrarse(email, clave)
 //   auth.salir() ; auth.alCambiar(cb(sesion|null)) -> quitar
+//   auth.recuperar(email) (manda el enlace «contraseña nueva») ; auth.cambiarClave(clave) ; auth.enlace() -> { recuperacion, error }
 //   seleccionarTodo(tabla) -> filas[] ; insertar(tabla, filas[]) -> filas[]
 //   actualizar(tabla, claveObj, cambios) -> filas[] ; upsert(tabla, filas[], onConflict) -> filas[]
 //   borrar(tabla, claveObj)  (solo tareas_hechas, setup_marcas y dias_calendario) ; rpc(nombre, args)
@@ -20,8 +21,17 @@ const BUCKET = 'capturas';
 let modo = null;
 let cli = null;     // cliente supabase
 let demo = null;    // módulo demo
+// Enlace del correo «contraseña nueva» (8-nov): llega como #access_token=…&type=recovery, o #error_code=… si caducó.
+// Se lee ANTES de crear el cliente, porque el cliente lo consume y lo borra de la dirección.
+let enlaceCorreo = { recuperacion: false, error: '' };
 
 export async function iniciar() {
+  const h = new URLSearchParams(location.hash.replace(/^#/, ''));
+  enlaceCorreo = {
+    recuperacion: h.get('type') === 'recovery',
+    error: h.get('error_code') || h.get('error') ? 'El enlace del correo ha caducado o ya se usó. Pide otro con «¿Has olvidado la contraseña?».' : '',
+  };
+  if (enlaceCorreo.error) history.replaceState(null, '', location.pathname + location.search);
   // ...?demo en la dirección = modo demo aunque haya Supabase (para probar cambios sin tocar datos reales)
   const demoForzado = new URLSearchParams(location.search).has('demo');
   if (!demoForzado && CONFIG.supabaseUrl && CONFIG.supabaseClave) {
@@ -48,6 +58,11 @@ function traducir(e) {
     [/User already registered/i, 'Ese correo ya tiene cuenta: entra con tu contraseña.'],
     [/Signups not allowed|signup.*disabled/i, 'Los registros están cerrados: la app es solo para Jose Luis y Héctor.'],
     [/Password should be at least/i, 'La contraseña es demasiado corta (mínimo 6 caracteres).'],
+    [/should be different from the old/i, 'La contraseña nueva tiene que ser distinta de la que tenías.'],
+    [/weak|pwned|leaked/i, 'Esa contraseña es demasiado fácil o ha salido en filtraciones: elige otra.'],
+    [/rate limit|only request this after|too many/i, 'Has pedido demasiados correos seguidos. Espera un rato (hasta 1 hora) y vuelve a pedirlo.'],
+    [/invalid or has expired|otp_expired/i, 'El enlace del correo ha caducado o ya se usó. Pide otro.'],
+    [/Auth session missing|session.*expired/i, 'La sesión ha caducado: vuelve a entrar.'],
     [/row-level security|permission denied|42501/i, 'No tienes permiso para esto.'],
     [/Failed to fetch|NetworkError|network/i, 'Sin conexión con el servidor. Reintenta en un momento.'],
     [/duplicate key/i, 'Eso ya existe.'],
@@ -90,6 +105,18 @@ export const auth = {
     const { data } = cli.auth.onAuthStateChange((_ev, s) => cb(s ? { usuarioId: s.user.id, email: s.user.email } : null));
     return () => data.subscription.unsubscribe();
   },
+  // «¿Has olvidado la contraseña?»: Supabase manda un enlace al correo (solo si ese correo tiene cuenta; no lo dice,
+  // para no desvelar qué correos existen). El enlace vuelve a la dirección de siempre (index.html), que pasa a la v2.
+  async recuperar(email) {
+    if (demo) return;
+    const raiz = location.href.split(/[?#]/)[0].replace(/(v2\/)?(index\.html|clasica\.html)?$/, '');
+    comprobar(await cli.auth.resetPasswordForEmail(email.trim(), { redirectTo: raiz }));
+  },
+  async cambiarClave(clave) {
+    if (demo) return;
+    comprobar(await cli.auth.updateUser({ password: clave }));
+  },
+  enlace() { return { ...enlaceCorreo }; },
 };
 
 // ---- tablas -------------------------------------------------------------------------------------

@@ -163,8 +163,10 @@ async function arrancar() {
     return pantallaError('No se pudo cargar la app (¿sin conexión?).', e);
   }
   db.auth.alCambiar(s => { if (!s && iniciado) location.reload(); });
+  const enlace = db.auth.enlace();
   const sesion = await db.auth.sesion();
-  if (sesion) await entrarEnApp(sesion); else mostrarEntrar();
+  if (enlace.recuperacion && sesion) return mostrarNuevaClave(sesion);   // viene del correo «contraseña nueva»
+  if (sesion) await entrarEnApp(sesion); else mostrarEntrar(enlace.error || (enlace.recuperacion ? 'El enlace del correo no ha funcionado. Pide otro.' : ''));
 }
 
 async function entrarEnApp(sesion) {
@@ -203,7 +205,7 @@ function tarjetaAcceso(...hijos) {
       ...hijos));
 }
 
-function mostrarEntrar() {
+function mostrarEntrar(aviso = '') {
   if (db.enDemo()) {
     const boton = (nombre, email, color) => el('button', {
       class: 'btn btn-grande', style: { '--c': color },
@@ -216,27 +218,49 @@ function mostrarEntrar() {
       el('p', { class: 'acceso-nota' }, 'Abre otra pestaña y entra como la otra persona para ver cómo se sincronizan los cambios.')));
     return;
   }
-  let registro = false;
+  let registro = false, olvido = false;
   const email = el('input', { type: 'email', autocomplete: 'email', placeholder: 'tu@correo.com' });
   const clave = el('input', { type: 'password', autocomplete: 'current-password', placeholder: 'Contraseña' });
   const clave2 = el('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Repite la contraseña' });
+  const campoClave = ui.campo('Contraseña', clave);
   const campoClave2 = ui.campo('Repite la contraseña', clave2);
-  const mensaje = el('div', { class: 'acceso-msg' });
+  const mensaje = el('div', { class: 'acceso-msg' }, aviso);
   const boton = el('button', { class: 'btn btn-primario btn-ancho', type: 'submit' }, 'Entrar');
   const cambiar = el('button', { class: 'enlace', type: 'button' }, '¿Primera vez? Crear cuenta');
+  const bOlvido = el('button', { class: 'enlace', type: 'button' }, '¿Has olvidado la contraseña?');
+  const notaOlvido = el('p', { class: 'acceso-nota' },
+    'Te mandamos un enlace a tu correo para poner una contraseña nueva. Solo llega si ese correo tiene cuenta en la agenda, ',
+    'así que si no te acuerdas de cuál usaste, prueba con los que tengas.');
   const pintarModo = () => {
-    campoClave2.style.display = registro ? '' : 'none';
-    boton.textContent = registro ? 'Crear cuenta' : 'Entrar';
+    campoClave.style.display = olvido ? 'none' : '';
+    campoClave2.style.display = registro && !olvido ? '' : 'none';
+    notaOlvido.style.display = olvido ? '' : 'none';
+    cambiar.style.display = olvido ? 'none' : '';
+    boton.textContent = olvido ? 'Mandarme el enlace' : registro ? 'Crear cuenta' : 'Entrar';
     cambiar.textContent = registro ? 'Ya tengo cuenta: entrar' : '¿Primera vez? Crear cuenta';
+    bOlvido.textContent = olvido ? 'Volver: ya me acuerdo' : '¿Has olvidado la contraseña?';
+    bOlvido.style.display = registro ? 'none' : '';
     clave.autocomplete = registro ? 'new-password' : 'current-password';
   };
   cambiar.onclick = () => { registro = !registro; mensaje.textContent = ''; pintarModo(); };
+  bOlvido.onclick = () => { olvido = !olvido; mensaje.className = 'acceso-msg'; mensaje.textContent = ''; pintarModo(); };
   const form = el('form', {
     class: 'acceso-form',
     onsubmit: async ev => {
       ev.preventDefault();
       mensaje.className = 'acceso-msg';
       mensaje.textContent = '';
+      if (olvido) {
+        if (!email.value.trim()) { mensaje.textContent = 'Escribe tu correo.'; return; }
+        boton.disabled = true;
+        try {
+          await db.auth.recuperar(email.value);
+          mensaje.className = 'acceso-msg ok';
+          mensaje.textContent = `Si ${email.value.trim()} tiene cuenta, en un par de minutos te llega un correo de Supabase (mira también en spam). `
+            + 'Ábrelo en este mismo dispositivo: entrarás y te pedirá la contraseña nueva.';
+        } catch (e) { mensaje.textContent = e.message; } finally { boton.disabled = false; }
+        return;
+      }
       if (!email.value.trim() || !clave.value) { mensaje.textContent = 'Escribe tu correo y tu contraseña.'; return; }
       if (registro && clave.value !== clave2.value) { mensaje.textContent = 'Las contraseñas no coinciden.'; return; }
       boton.disabled = true;
@@ -256,8 +280,37 @@ function mostrarEntrar() {
         mensaje.textContent = e.message;
       } finally { boton.disabled = false; }
     },
-  }, ui.campo('Correo', email), ui.campo('Contraseña', clave), campoClave2, mensaje, boton, cambiar);
+  }, ui.campo('Correo', email), campoClave, campoClave2, notaOlvido, mensaje, boton, cambiar, bOlvido);
   pintarModo();
+  ui.reemplazar(raiz, tarjetaAcceso(form));
+}
+
+// Vuelta del correo «contraseña nueva»: ya hay sesión; se pide la contraseña nueva y se entra.
+function mostrarNuevaClave(sesion) {
+  const clave = el('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Contraseña nueva' });
+  const clave2 = el('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Repite la contraseña' });
+  const mensaje = el('div', { class: 'acceso-msg' });
+  const boton = el('button', { class: 'btn btn-primario btn-ancho', type: 'submit' }, 'Guardar y entrar');
+  const form = el('form', {
+    class: 'acceso-form',
+    onsubmit: async ev => {
+      ev.preventDefault();
+      mensaje.className = 'acceso-msg';
+      mensaje.textContent = '';
+      if (clave.value.length < 6) { mensaje.textContent = 'Mínimo 6 caracteres.'; return; }
+      if (clave.value !== clave2.value) { mensaje.textContent = 'Las contraseñas no coinciden.'; return; }
+      boton.disabled = true;
+      try {
+        await db.auth.cambiarClave(clave.value);
+        history.replaceState(null, '', location.pathname + location.search);
+        await entrarEnApp(sesion);
+        ui.toast('Contraseña nueva guardada');
+      } catch (e) { mensaje.textContent = e.message; boton.disabled = false; }
+    },
+  },
+  el('p', { class: 'acceso-nota' }, 'Pon tu contraseña nueva para ', el('b', {}, sesion.email || 'tu cuenta'),
+    '. Apunta el correo: es con el que entras en la agenda.'),
+  ui.campo('Contraseña nueva', clave), ui.campo('Repite la contraseña', clave2), mensaje, boton);
   ui.reemplazar(raiz, tarjetaAcceso(form));
 }
 
