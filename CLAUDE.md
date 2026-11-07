@@ -1,7 +1,7 @@
 # AGENDA JOSE · HÉCTOR — web (instrucciones para Claude)
 
 App solo para Jose Luis y Héctor. Desde el 7-nov-2026 la agenda es la **v2 «Fluido»** (`v2/`): Calendario, Semana, Hoy,
-Setups (= las operaciones que Jose Luis publica desde su Terminal), Notas (privadas) y Mercado.
+Setups (= las operaciones que Jose Luis publica desde su Terminal), Prompts (solo en el PC), Notas (privadas) y Mercado.
 `index.html` (la dirección de siempre) abre la v2; la agenda de antes sigue en `clasica.html` (de reserva).
 Este repositorio es **solo la web** (GitHub Pages, público). Los datos viven en Supabase. El esquema de la base de datos
 (`sql/`), las herramientas y las pruebas de la web están en el PC Windows de Jose Luis (`sistema/agenda/` del proyecto), no aquí.
@@ -22,6 +22,9 @@ Este repositorio es **solo la web** (GitHub Pages, público). Los datos viven en
   - Setups = operaciones (`operaciones`): solo las publica el PC de Jose Luis; desde la web, su autor solo puede mandarla
     a la papelera y sacarla. Dibujos sobre su gráfico (`operacion_dibujos`): los dos ven todos; cada uno toca los suyos.
   - Noticias que cada uno quita del calendario (`noticias_ocultas`): cada uno las suyas.
+  - Prompts para Claude: la tarea guarda su parte en `tareas.claude` ({comp, nota, manual, enviado, n}); el prompt se arma SIN IA
+    con la ficha de su proyecto, que vive en la tabla `claude_fichas` de la base: NUNCA pongas fichas, rutas ni puertos en el
+    código (este repositorio es público). En la demo hay fichas de ejemplo.
   - Si la base rechaza un cambio, `db.js` lo convierte en error para que la pantalla lo deshaga (no se queda «hecho»).
 - **Cambios en el modelo de datos** (tablas/columnas/permisos): se preparan como SQL numerado (en el PC de Jose Luis,
   `sistema/agenda/sql/NNN_….sql`) y la web se publica DESPUÉS de aplicarlo. `js/store.js` es de las dos versiones: una
@@ -29,8 +32,8 @@ Este repositorio es **solo la web** (GitHub Pages, público). Los datos viven en
 
 ## Mapa
 - `v2/index.html` · `v2/css/fluido.css` · `v2/js/app.js` (arranque, isla, barra de pestañas, rutas #/calendario,
-  #/semana, #/dia, #/setups, #/notas, #/mercado, #/ajustes) · `v2/js/motor.js` (muelles)
-- `v2/js/vistas/`: `calendario.js`, `semana.js`, `hoy.js`, `notas.js`, `operaciones.js` (la pestaña Setups)
+  #/semana, #/dia, #/setups, #/prompts, #/notas, #/mercado, #/ajustes) · `v2/js/motor.js` (muelles)
+- `v2/js/vistas/`: `calendario.js`, `semana.js`, `hoy.js`, `notas.js`, `operaciones.js` (la pestaña Setups), `prompts.js`
 - Compartido con la clásica: `js/store.js` (copia en memoria + tiempo real) · `js/db.js` (Supabase o demo) ·
   `js/demo.js` · `js/fechas.js` (Europe/Madrid) · `js/recurrencia.js` (RRULE = dateutil) · `js/ui.js` ·
   `js/vistas/mercado.js`, `ajustes.js`, `tarea-editor.js`, `comentarios.js` (la v2 los usa con su piel)

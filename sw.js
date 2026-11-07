@@ -5,7 +5,7 @@ const VERSION = 'agenda-jh-v3';
 const ESQUELETO = [
   './v2/', './v2/index.html', './v2/css/fluido.css', './v2/js/app.js', './v2/js/motor.js',
   './v2/js/vistas/calendario.js', './v2/js/vistas/semana.js', './v2/js/vistas/hoy.js', './v2/js/vistas/notas.js',
-  './v2/js/vistas/operaciones.js', './v2/vendor/lightweight-charts.standalone.production.js',
+  './v2/js/vistas/operaciones.js', './v2/js/vistas/prompts.js', './v2/vendor/lightweight-charts.standalone.production.js',
   './', './index.html', './clasica.html', './manifest.webmanifest', './css/base.css', './css/vistas.css',
   './js/app.js', './js/config.js', './js/db.js', './js/demo.js', './js/store.js', './js/fechas.js',
   './js/recurrencia.js', './js/ui.js',

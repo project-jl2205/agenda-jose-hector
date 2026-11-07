@@ -1,6 +1,8 @@
 // SEMANA (v2 Fluido) — mismos datos que la Semana de siempre (grupos, tareas, tareas_hechas,
 // notas_semana, arrastre de pendientes), con la cara de la demo Fluido: cifra grande con líquido,
 // una tarjeta por persona, grupos que se pliegan con muelle, marcar con onda y aviso en la isla.
+// «Para Claude» (8-nov, SQL 006): </> en cada tarea y en «Nueva tarea…» (también desde el móvil); la tarea guarda su
+// proyecto en tareas.claude y en el PC sale en la pestaña Prompts con su prompt ya hecho («↗ prompt» lleva a él).
 
 import { el, modal, campo, selector, confirmar, avatar, debounce, error, reemplazar } from '../../../js/ui.js';
 import { editarTarea } from '../../../js/vistas/tarea-editor.js';
@@ -40,6 +42,21 @@ export function montar(cont, ctx) {
     return { filas, n: filas.length, hechas: h, pct: pctDe(h, filas.length) };
   };
   const bandejaPend = () => store.vivas('tareas', t => !t.fecha && !t.grupo_id && !t.rrule && !store.hecha(t.id)).length;
+
+  // ---- «para Claude» (SQL 006): sin la tabla de fichas en la base no sale nada de esto ----
+  const conClaude = () => !store.disponible || store.disponible('claude_fichas');
+  const fichas = () => store.filas('claude_fichas').sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0));
+  const fichaDe = comp => store.fila('claude_fichas', comp) || null;
+  let compNueva = (() => { try { return localStorage.getItem('agenda-jh-comp-nueva') || ''; } catch { return ''; } })();
+  const compPorDefecto = () => (fichaDe(compNueva) ? compNueva : fichas()[0]?.proyecto || 'agenda');
+  // el proyecto se adivina por el texto (como en la demo); si no, el último que elegiste
+  const adivina = txt => (/terminal|lote|orden|gr[aá]fic/i.test(txt) ? 'terminal' : /agenda|tarea|setup|nota/i.test(txt) ? 'agenda'
+    : /calendario|macro|dato|noticia/i.test(txt) ? 'calendario' : /app|insomniac|mongo|radar/i.test(txt) ? 'app' : null);
+  const compPara = txt => { const c = adivina(txt); return c && fichaDe(c) ? c : compPorDefecto(); };
+  const nuevoClaude = comp => ({ comp, nota: '', manual: null, enviado: null, n: Date.now() });
+  const codNueva = new Map();   // grupo → proyecto de las «ideas para Claude» que se van añadiendo (o nada)
+  const esMovil = () => matchMedia('(max-width: 820px)').matches;
+  const colorComp = comp => fichaDe(comp)?.color || '#0a84ff';
 
   // ---- esqueleto ----
   const hero = el('div', { class: 'hero' });
@@ -123,7 +140,7 @@ export function montar(cont, ctx) {
     // el <svg> entero va dentro de un span: creado con createElement('svg') no se pintaría (espacio de nombres HTML)
     return svgEn('span', { class: 'anillo-c' }, `<svg class="anillo" viewBox="0 0 42 42"><circle cx="21" cy="21" r="17" stroke="#ffffff12"/><circle class="v" cx="21" cy="21" r="17" stroke="${/^#[0-9a-f]{3,8}$/i.test(color) ? color : '#30d158'}" stroke-dasharray="${L}" stroke-dashoffset="${L * (1 - p / 100)}"/></svg>`);
   }
-  const firmaGrupo = g => JSON.stringify([g.nombre, g.color, g.persona, g.prioridad, tareasDe(g).map(t => [t.id, t.titulo, t.persona, t.fecha, t.hora, t.origen_tarea_id])]);
+  const firmaGrupo = g => JSON.stringify([g.nombre, g.color, g.persona, g.prioridad, tareasDe(g).map(t => [t.id, t.titulo, t.persona, t.fecha, t.hora, t.origen_tarea_id, t.claude ? [t.claude.comp, t.claude.enviado?.como || ''] : 0])]);
 
   function filaTarea(g, t) {
     const fila = el('div', { class: 't', dataset: { t: t.id }, tabindex: 0, role: 'checkbox' });
@@ -134,14 +151,20 @@ export function montar(cont, ctx) {
       t.origen_tarea_id && el('em', { class: 'arr', title: 'Venía de la semana anterior' }, ' ↩'),
       t.fecha && el('em', { class: 'fch' }, ` · ${F.fmtDiaStr(t.fecha)}${t.hora ? ' ' + F.horaCorta(t.hora) : ''}`));
     const quien = el('span', { class: 'quien' });
+    const pp = t.claude && conClaude() ? el('span', { class: `pp ${t.claude.enviado ? 'env' : ''}`, dataset: { acc: 'prompt' },
+      title: esMovil() ? 'Tiene su prompt: lo verás en el PC, en Prompts' : 'Ver su prompt (Prompts)' }, t.claude.enviado ? `✓ ${t.claude.enviado.como || 'mandado'}` : '↗ prompt') : '';
     const acc = el('span', { class: 't-acc' },
+      conClaude() && el('button', { class: `cod ${t.claude ? 'on' : ''}`, dataset: { acc: 'codigo' },
+        title: t.claude ? 'Quitar de Prompts' : 'Para Claude: tendrá su prompt en el PC (Prompts)' }, '</>'),
       svgEn('button', { title: 'Editar la tarea (fecha, hora, persona, etiquetas…)', dataset: { acc: 'editar' } }, LAPIZ),
       svgEn('button', { class: 'del', title: 'A la papelera', dataset: { acc: 'borrar' } }, PAPELERA));
-    fila.append(ck, tx, resp ? avatar(resp, 20) : '', quien, acc);
+    fila.append(ck, tx, pp, resp ? avatar(resp, 20) : '', quien, acc);
     fila.addEventListener('click', ev => {
       const a = ev.target.closest('[data-acc]');
       if (a?.dataset.acc === 'editar') { ev.stopPropagation(); return editarTarea(t).catch(error); }
       if (a?.dataset.acc === 'borrar') { ev.stopPropagation(); return aPapelera('tareas', t, `Borrada · ${t.titulo}`); }
+      if (a?.dataset.acc === 'codigo') { ev.stopPropagation(); return alternarClaude(t); }
+      if (a?.dataset.acc === 'prompt') { ev.stopPropagation(); return verPrompt(t); }
       marcar(g, t, fila);
     });
     fila.addEventListener('dblclick', ev => { ev.preventDefault(); editarTarea(t).catch(error); });
@@ -190,13 +213,30 @@ export function montar(cont, ctx) {
       avisar(texto, '', '#ff453a', () => store.restaurar(tabla, fila.id).catch(error));
     } catch (e) { error(e); }
   }
+  async function alternarClaude(t) {
+    const antes = t.claude || null, nuevo = antes ? null : nuevoClaude(compPara(t.titulo));
+    try {
+      await store.actualizar('tareas', { id: t.id }, { claude: nuevo });
+      if (nuevo) avisar(t.titulo, '</> prompt listo', colorComp(nuevo.comp));
+      else avisar(`Quitada de Prompts · ${t.titulo}`, '', '#8e8e96', () => store.actualizar('tareas', { id: t.id }, { claude: antes }).catch(error));
+    } catch (e) { error(e); }
+  }
+  function verPrompt(t) {
+    if (esMovil()) return avisar('Su prompt te espera en el PC, en Prompts', '</>', 'var(--azul)');
+    try { sessionStorage.setItem('agenda-jh-prompt-foco', t.id); } catch { /* sin almacenamiento */ }
+    navegar('prompts');
+  }
   async function anadir(g, input) {
     const titulo = input.value.trim();
     if (!titulo) return;
+    const comp = conClaude() ? codNueva.get(g.id) : null;
     input.value = '';
     borradores.delete(g.id);
-    try { await store.insertar('tareas', { titulo, grupo_id: g.id, tipo: 'puntual', orden: tareasDe(g).length, creado_por: store.usuarioId() }); }
-    catch (e) { input.value = titulo; error(e); }
+    try {
+      await store.insertar('tareas', { titulo, grupo_id: g.id, tipo: 'puntual', orden: tareasDe(g).length, creado_por: store.usuarioId(),
+        ...(comp ? { claude: nuevoClaude(comp) } : {}) });
+      if (comp) avisar(titulo, '</> prompt listo', colorComp(comp));
+    } catch (e) { input.value = titulo; error(e); }
   }
 
   function construirGrupo(g) {
@@ -216,11 +256,29 @@ export function montar(cont, ctx) {
       n,
       svgEn('span', { class: 'chev' }, CHEV));
     const filas = new Map(ts.map(t => [t.id, filaTarea(g, t)]));
-    const inp = el('input', { class: 't-in', placeholder: 'Nueva tarea…', value: borradores.get(g.id) || '', enterkeyhint: 'done',
+    const inp = el('input', { class: 't-in', placeholder: codNueva.get(g.id) ? 'Idea para Claude…' : 'Nueva tarea…', value: borradores.get(g.id) || '', enterkeyhint: 'done',
       oninput: e => borradores.set(g.id, e.target.value),
       onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); anadir(g, e.target); } if (e.key === 'Escape') e.target.blur(); } });
+    // «Idea para Claude» (</>): lo que se añada sale en Prompts con el proyecto elegido en los chips
+    const chipsC = conClaude() ? el('div', { class: 't-comps', hidden: !codNueva.get(g.id) },
+      fichas().map(f => el('button', { class: `comp ${f.proyecto === codNueva.get(g.id) ? 'on' : ''}`, type: 'button', dataset: { comp: f.proyecto },
+        style: { '--c': f.color }, onclick: ev => { ev.preventDefault(); ponerCompNueva(g, f.proyecto); } }, f.nombre))) : '';
+    const cod = conClaude() ? el('button', { class: `t-cod ${codNueva.get(g.id) ? 'on' : ''}`, type: 'button',
+      title: 'Idea para Claude: la tarea tendrá su prompt listo en el PC', onclick: ev => { ev.preventDefault(); alternarCodNueva(g); } }, '</>') : '';
+    function pintarCodNueva() {
+      const comp = codNueva.get(g.id);
+      if (cod) cod.classList.toggle('on', !!comp);
+      if (chipsC) { chipsC.hidden = !comp; chipsC.querySelectorAll('.comp').forEach(b => b.classList.toggle('on', b.dataset.comp === comp)); }
+      inp.placeholder = comp ? 'Idea para Claude…' : 'Nueva tarea…';
+    }
+    function alternarCodNueva() { if (codNueva.get(g.id)) codNueva.delete(g.id); else codNueva.set(g.id, compPorDefecto()); pintarCodNueva(); inp.focus(); }
+    function ponerCompNueva(_, comp) {
+      codNueva.set(g.id, comp); compNueva = comp;
+      try { localStorage.setItem('agenda-jh-comp-nueva', comp); } catch { /* sin almacenamiento */ }
+      pintarCodNueva(); inp.focus();
+    }
     const lista = el('div', { class: 'lista' }, [...filas.values()],
-      el('label', { class: 't-nueva' }, el('span', { class: 'mas' }, '+'), inp));
+      el('label', { class: 't-nueva' }, el('span', { class: 'mas' }, '+'), inp, cod), chipsC);
     const cuerpo = el('div', { class: 'cuerpo', style: { height: ab ? 'auto' : '0px' } }, lista);
     const sec = el('section', { class: `card grupo ${ab ? 'ab' : ''} ${p === 100 && ts.length ? 'completo' : ''}`, dataset: { gid: g.id }, style: { '--gc': g.color } }, gh, cuerpo);
     const alternar = () => {

@@ -15,7 +15,7 @@ const blobs = new Map();
 const ahora = () => new Date().toISOString();
 const uid = () => crypto.randomUUID();
 
-const PK = { tareas_hechas: ['tarea_id', 'ocurrencia'], notas_semana: ['semana', 'slot'], setup_marcas: ['setup_id', 'paso'], setup_estado: ['setup_id'], simbolos: ['simbolo'], dias_calendario: ['fecha'], noticias_ocultas: ['usuario', 'noticia_id'] };
+const PK = { tareas_hechas: ['tarea_id', 'ocurrencia'], notas_semana: ['semana', 'slot'], setup_marcas: ['setup_id', 'paso'], setup_estado: ['setup_id'], simbolos: ['simbolo'], dias_calendario: ['fecha'], noticias_ocultas: ['usuario', 'noticia_id'], claude_fichas: ['proyecto'] };
 const pk = t => PK[t] || ['id'];
 const mismaClave = (t, a, b) => pk(t).every(k => String(a[k]) === String(b[k]));
 
@@ -30,6 +30,7 @@ export async function iniciar() {
     db.operaciones = J ? OPS_DEMO.map(d => opDemo(d, J)) : [];
     db.operacion_dibujos = [];
   }
+  if (!db.claude_fichas) db.claude_fichas = FICHAS_DEMO.map(f => ({ ...f, actualizado_en: ahora() }));   // (tanda de Prompts)
   guardar();
   prepararArchivosDemo();
   if ('BroadcastChannel' in window) {
@@ -92,7 +93,7 @@ export const auth = {
 const DEF = {
   etiquetas: u => ({ color: '#6366f1', ambito: 'todas', creado_por: u, creado_en: ahora(), borrado_en: null }),
   grupos: u => ({ prioridad: 'ALTA', color: '#f59e0b', orden: 0, persona: null, origen_grupo_id: null, creado_por: u, creado_en: ahora(), actualizado_en: ahora(), borrado_en: null }),
-  tareas: u => ({ notas: null, grupo_id: null, persona: null, prioridad: null, etiquetas: [], tipo: 'puntual', fecha: null, hora: null, duracion_min: null, rrule: null, hasta: null, orden: 0, origen_tarea_id: null, color: null, es_evento: false, excepciones: [], creado_por: u, creado_en: ahora(), actualizado_en: ahora(), borrado_en: null }),
+  tareas: u => ({ claude: null, notas: null, grupo_id: null, persona: null, prioridad: null, etiquetas: [], tipo: 'puntual', fecha: null, hora: null, duracion_min: null, rrule: null, hasta: null, orden: 0, origen_tarea_id: null, color: null, es_evento: false, excepciones: [], creado_por: u, creado_en: ahora(), actualizado_en: ahora(), borrado_en: null }),
   tareas_hechas: u => ({ ocurrencia: '1970-01-01', hecha_por: u, hecha_en: ahora() }),
   notas_semana: u => ({ texto: '', editado_por: u, editado_en: ahora() }),
   herramientas: () => ({ categoria: null, gastado: 0, presupuesto: 0, moneda: '€', estado: 'ACTIVO', color: '#6366f1', orden: 0, actualizado_en: ahora(), borrado_en: null }),
@@ -110,6 +111,8 @@ const DEF = {
 
 function validar(tabla, f, antes) {
   if (tabla === 'tareas') {
+    // la parte «para Claude» (SQL 006): vacía o un objeto con su proyecto
+    if (f.claude != null && !(typeof f.claude === 'object' && !Array.isArray(f.claude) && typeof f.claude.comp === 'string')) throw new Error('Hay un dato que no es válido.');
     if (f.tipo !== 'puntual' && (!f.rrule || !f.fecha)) throw new Error('Una tarea que se repite necesita fecha de inicio y repetición.');
     if (f.tipo === 'temporal' && !f.hasta) throw new Error('Una tarea temporal necesita fecha de fin.');
   }
@@ -148,6 +151,7 @@ function validar(tabla, f, antes) {
     if (!ok) throw new Error('Hay un dato que no es válido.');
     if (!antes && (db.operaciones || []).find(o => o.id === f.operacion_id)?.borrado_en !== null) throw new Error('No tienes permiso para esto.');
   }
+  if (tabla === 'claude_fichas' && (!/^[a-z0-9-]{1,30}$/.test(f.proyecto || '') || !/^#[0-9a-f]{6}$/i.test(f.color || ''))) throw new Error('Hay un dato que no es válido.');
   // notas de mercado: cada uno solo las suyas, y nunca vacías ni de más de 20.000 caracteres (SQL 004)
   if (tabla === 'notas_mercado') {
     if (f.autor !== usuario() || (antes && antes.autor !== usuario())) throw new Error('No tienes permiso para esto.');
@@ -288,6 +292,10 @@ function semillas() {
   const gH = { id: uid(), semana: sem, nombre: 'HÉCTOR', persona: H, prioridad: 'ALTA', color: '#6366f1', orden: 1, origen_grupo_id: null, creado_por: J, ...base };
   const tarea = (titulo, g, orden, extra = {}) => ({ id: uid(), titulo, notas: null, grupo_id: g?.id || null, persona: g?.persona || null, prioridad: null, etiquetas: [], tipo: 'puntual', fecha: null, hora: null, duracion_min: null, rrule: null, hasta: null, orden, origen_tarea_id: null, creado_por: J, ...base, ...extra });
   const tJ = ['METER BOTS MT5', 'VERIFICAR', 'BUSCAR OPCIONES PARA LA APP', 'LISTAR', 'APP DESCARGABLE', 'EDITAR FLUIDEZ Y COMPORTAMIENTO VENTANAS', 'INVESTIGAR VENTANA DE IA PROPIA', 'MAKEAR GRÁFICO EN VIVO Y MONTECARLO', 'INVESTIGAR OBSIDIAN EN LA TERMINAL MULTIAGENTE', 'TRADEAR'].map((x, i) => tarea(x, gJ, i));
+  // dos tareas «para Claude» (</> en Semana; su prompt sale en la pestaña Prompts del PC) y una idea suelta en la bandeja
+  tJ[2].claude = { comp: 'app', nota: '', manual: null, enviado: null, n: 2 };
+  tJ[5].claude = { comp: 'agenda', nota: 'al cambiar rápido de pestaña, la página nueva entra a tirones', manual: null, enviado: null, n: 1 };
+  const tC = [tarea('Arreglar la calculadora de lotes del Terminal', null, 0, { claude: { comp: 'terminal', nota: 'propone un lote que no cuadra con el riesgo en %', manual: null, enviado: null, n: 3 } })];
   const tH = ['EXTRAER CUADERNOS', 'CREAR GEMA', 'EXTRAER Y GUARDAR TODA LA INFO PERSONALIDADES', 'SOLUCIONAR PROBLEMA CAMBIAR DE GRÁFICA', 'TEST DE FUNCIONAMIENTO Y CREAR INSTRUCCIONES', 'COMPROBAR QUE TODO FUNCIONA CORRECTAMENTE Y PONER A OPERAR AL BOT CON REAL', 'EXTRACCIÓN FUENTES ALEJO ROLLS', 'GUARDAR OBSIDIAN ARCHIVOS'].map((x, i) => tarea(x, gH, i));
   const calendario = [
     tarea('Revisión pre-Londres', null, 0, { persona: J, etiquetas: [E.trading.id], tipo: 'permanente', fecha: sumarDias(d, -20), hora: '08:30:00', duracion_min: 30, rrule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR' }),
@@ -329,7 +337,7 @@ function semillas() {
     ],
     etiquetas: Object.values(E),
     grupos: [gJ, gH],
-    tareas: [...tJ, ...tH, ...calendario],
+    tareas: [...tJ, ...tH, ...tC, ...calendario],
     tareas_hechas: hechas,
     notas_semana: [
       { semana: sem, slot: 1, texto: 'Agenda semanal Jose Luis & Héctor.', editado_por: J, editado_en: ahora() },
@@ -380,8 +388,18 @@ function semillas() {
     noticias_ocultas: [],
     operaciones: OPS_DEMO.map(d => opDemo(d, J)),
     operacion_dibujos: [],
+    claude_fichas: FICHAS_DEMO.map(f => ({ ...f, actualizado_en: ahora() })),
   };
 }
+
+// fichas de los proyectos para los prompts, DE EJEMPLO: las de verdad van en la base (SQL 006), porque llevan rutas y puertos
+// del PC de Jose Luis y este código es público
+const FICHAS_DEMO = [
+  { proyecto: 'terminal', nombre: 'Terminal', color: '#0a84ff', donde: 'el Terminal (en la agenda de verdad, su ficha dice dónde está)', rutas: 'la carpeta del Terminal', probar: 'pruébalo y enséñame el antes y el después.', cuidado: 'modo demo: en la agenda de verdad aquí van las reglas de este proyecto.', orden: 1 },
+  { proyecto: 'agenda', nombre: 'Agenda', color: '#ff9f0a', donde: 'esta agenda', rutas: 'la carpeta de la agenda', probar: 'pruébalo con ?demo y en el móvil.', cuidado: 'modo demo: en la agenda de verdad aquí van las reglas de este proyecto.', orden: 2 },
+  { proyecto: 'app', nombre: 'App Insomniac', color: '#bf5af2', donde: 'la app', rutas: 'la carpeta de la app', probar: 'compruébalo con la app abierta.', cuidado: 'modo demo: en la agenda de verdad aquí van las reglas de este proyecto.', orden: 3 },
+  { proyecto: 'calendario', nombre: 'Calendario Alpha', color: '#30d158', donde: 'el Calendario Alpha', rutas: 'la carpeta del Calendario', probar: 'comprueba que sigue midiendo sin huecos.', cuidado: 'modo demo: en la agenda de verdad aquí van las reglas de este proyecto.', orden: 4 },
+];
 
 // ---- operaciones publicadas de ejemplo (en la real las sube el PC de Jose Luis: herramientas/operaciones_agenda.py) ----
 // INVENTADAS (el repositorio es público: nunca capturas ni cifras reales). Las velas y la captura se generan en el

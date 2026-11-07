@@ -17,13 +17,14 @@ export const TABLAS = [
   'dias_calendario', 'noticias_clave', 'noticias_ocultas',   // SQL 003 (calendario)
   'notas_mercado',                                             // SQL 004 (notas de mercado, cada uno las suyas)
   'operaciones', 'operacion_dibujos',                          // SQL 005 (operaciones publicadas desde el Terminal)
+  'claude_fichas',                                             // SQL 006 (fichas de los proyectos para los prompts)
 ];
 // si una de estas faltara en la base (SQL sin aplicar), la agenda arranca igual sin ella en vez de no arrancar
-const OPCIONALES = new Set(['dias_calendario', 'noticias_clave', 'noticias_ocultas', 'notas_mercado', 'operaciones', 'operacion_dibujos']);
+const OPCIONALES = new Set(['dias_calendario', 'noticias_clave', 'noticias_ocultas', 'notas_mercado', 'operaciones', 'operacion_dibujos', 'claude_fichas']);
 const PK = {
   tareas_hechas: ['tarea_id', 'ocurrencia'], notas_semana: ['semana', 'slot'],
   setup_marcas: ['setup_id', 'paso'], setup_estado: ['setup_id'], simbolos: ['simbolo'],
-  dias_calendario: ['fecha'], noticias_ocultas: ['usuario', 'noticia_id'],
+  dias_calendario: ['fecha'], noticias_ocultas: ['usuario', 'noticia_id'], claude_fichas: ['proyecto'],
 };
 const pk = t => PK[t] || ['id'];
 export const claveDe = (tabla, fila) => pk(tabla).map(k => String(fila?.[k])).join('|');

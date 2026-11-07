@@ -123,6 +123,7 @@ const SVG = {
   semana: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="4" width="18" height="17" rx="4"/><path d="M3 9h18"/></svg>',
   dia: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   setups: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 17l5-6 4 4 8-9"/></svg>',
+  prompts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-5-6-5"/><path d="M12 19h8"/></svg>',
   notas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M9 10h7M9 14h7M9 18h4"/></svg>',
   mercado: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v18M17 3v18"/><rect x="4.5" y="7" width="5" height="9" rx="1.5"/><rect x="14.5" y="5" width="5" height="7" rx="1.5"/></svg>',
   winrate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
@@ -135,6 +136,7 @@ const VISTAS = {
   semana:  { titulo: 'Semana',  tab: true, cargar: () => import('./vistas/semana.js') },
   dia:     { titulo: 'Hoy',     tab: true, cargar: () => import('./vistas/hoy.js') },
   setups:  { titulo: 'Setups',  tab: true, cargar: () => import('./vistas/operaciones.js') },
+  prompts: { titulo: 'Prompts', tab: true, soloPC: true, cargar: () => import('./vistas/prompts.js') },   // en el móvil no (las ideas se marcan con </> en Semana)
   notas:   { titulo: 'Notas',   tab: true, cargar: () => import('./vistas/notas.js') },
   mercado: { titulo: 'Mercado', tab: true, cargar: () => import('../../js/vistas/mercado.js'), clasica: true },
   ajustes: { titulo: 'Ajustes', tab: false, cargar: () => import('../../js/vistas/ajustes.js'), clasica: true },
@@ -334,8 +336,10 @@ let isla, gota, mG;
 function montarMarco() {
   const tabs = el('nav', { class: 'tabs', id: 'tabs', 'aria-label': 'Secciones' },
     gota = el('span', { class: 'gota', 'aria-hidden': 'true' }),
-    ORDEN.filter(k => VISTAS[k].tab).map(k => el('a', { href: `#/${k}`, dataset: { v: k } }, svg(k), el('span', { class: 'tab-t' }, VISTAS[k].titulo))));
-  tabs.style.setProperty('--n', String(ORDEN.filter(k => VISTAS[k].tab).length));   // el ancho de cada pestaña depende de cuántas hay
+    ORDEN.filter(k => VISTAS[k].tab).map(k => el('a', { href: `#/${k}`, dataset: { v: k }, class: VISTAS[k].soloPC ? 'solo-pc' : null }, svg(k), el('span', { class: 'tab-t' }, VISTAS[k].titulo))));
+  // el ancho de cada pestaña depende de cuántas se VEN (Prompts no sale en el móvil): se recuenta al cambiar de tamaño
+  const contarTabs = () => tabs.style.setProperty('--n', String([...tabs.querySelectorAll('a')].filter(a => getComputedStyle(a).display !== 'none').length || 1));
+  contarTabs(); addEventListener('resize', contarTabs); requestAnimationFrame(contarTabs);
   ui.reemplazar(raiz,
     el('div', { class: 'techo', 'aria-hidden': 'true' }),
     el('div', { class: 'suelo', 'aria-hidden': 'true' }),
@@ -613,7 +617,7 @@ async function vigilarVersion() {
 document.addEventListener('keydown', ev => {
   if (!iniciado || ev.ctrlKey || ev.metaKey || ev.altKey) return;
   if (ev.target.closest?.('input, textarea, select, [contenteditable]') || document.querySelector('.modal-bg')) return;
-  const tabs = ORDEN.filter(k => VISTAS[k].tab);
+  const tabs = ORDEN.filter(k => VISTAS[k].tab && !(VISTAS[k].soloPC && matchMedia('(max-width: 820px)').matches));
   const n = +ev.key;
   if (n >= 1 && n <= tabs.length) navegar(tabs[n - 1]);
 });

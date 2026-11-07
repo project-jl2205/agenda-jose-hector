@@ -740,7 +740,7 @@ body.escribiendo .nt-comp{bottom:0}
    cualquier clase (.pastilla, .dp-b, .op-del…) sigue mandando */
 :where(.v-ops, .visor-op) button{background:none;border:0;padding:0;margin:0;cursor:pointer;color:inherit;font:inherit;text-align:inherit}
 
-/* ===== iPhone con la agenda abierta desde el icono (8-nov, por una captura de Jose Luis: el visor quedaba debajo de la hora) =====
+/* ===== iPhone con la agenda abierta desde el icono (7-nov, por una captura de Jose Luis: el visor quedaba debajo de la hora) =====
    A pantalla completa («black-translucent» + viewport-fit=cover) la página va también por debajo de la barra del sistema (hora,
    cobertura, batería) y, en apaisado, del notch. Nada fijo se queda ahí: lo de arriba baja lo que mide esa barra (0 en el PC y
    en el navegador normal) y lo de los lados se aparta del notch. */
@@ -758,3 +758,95 @@ body.escribiendo .nt-comp{bottom:0}
 @media(max-width:600px){.esquina{top:calc(16px + var(--sa-t));right:calc(10px + var(--sa-r))}
   /* en el móvil los botones van en columna bajo la esquina: el panel se queda a su izquierda (antes los tapaba a los dos) */
   .tema{top:calc(58px + var(--sa-t));right:calc(52px + var(--sa-r));width:calc(100vw - 62px - var(--sa-l) - var(--sa-r))}}
+
+/* ===== PROMPTS PARA CLAUDE (8-nov, SQL 006): pestaña Prompts (solo PC) y </> en Semana. De la demo Fluido; la pestaña
+   acotada a .v-prompts y su hilo renombrado a .pr-hilo (.hilo ya es el de los comentarios de la clásica) ===== */
+.pp{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:99px;background:#0a84ff1f;color:#64b5ff;font-size:12px;font-weight:700;cursor:grab;white-space:nowrap;flex-shrink:0;transition:transform .4s var(--muelle),background .2s}
+.pp:hover{background:#0a84ff33;transform:scale(1.06)}.pp:active{cursor:grabbing}
+.pp.env{background:#30d15822;color:var(--ok)}
+.t.h .pp{display:none}
+.fantasma{position:fixed;left:-2000px;top:0;display:flex;align-items:center;gap:10px;padding:9px 18px 9px 9px;border-radius:99px;background:#0a84ff;color:#fff;max-width:360px;font-family:'Inter',sans-serif}
+.fantasma span{width:30px;height:30px;border-radius:50%;background:#ffffff33;display:grid;place-items:center;font-weight:900;flex-shrink:0}
+.fantasma small{display:block;font-size:11px;opacity:.85}.fantasma b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+.comps{display:flex;gap:6px;flex-wrap:wrap}
+.comp{padding:6px 12px;border-radius:99px;font-weight:700;font-size:12.5px;color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);border:1px solid transparent;white-space:nowrap}
+button.comp{opacity:.45;transition:opacity .2s,transform .4s var(--muelle),border-color .2s}button.comp:active{transform:scale(.9)}
+button.comp.on{opacity:1;border-color:color-mix(in srgb,var(--c) 55%,transparent)}
+.t-cod{padding:4px 9px;border-radius:9px;font:700 12px 'JetBrains Mono',ui-monospace,monospace;color:var(--tenue);border:1px solid #2a2a30;flex-shrink:0;transition:color .2s,background .2s,border-color .2s,transform .4s var(--muelle)}
+.t-cod:hover{color:var(--sub)}.t-cod:active{transform:scale(.88)}
+.t-cod.on{color:#64b5ff;background:#0a84ff1f;border-color:#0a84ff66}
+.t-comps{display:flex;gap:6px;flex-wrap:wrap;padding:0 10px 10px 50px}.t-comps[hidden]{display:none}
+.t-acc .cod{font:700 11px 'JetBrains Mono',ui-monospace,monospace;width:auto;padding:0 6px}.t-acc .cod.on{color:#64b5ff}
+@media(max-width:820px){.t .pp{display:none}.t-acc button{width:26px}.t-acc .cod{width:auto}}
+.v-prompts .pr-cab h2{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.15;margin:6px 0 10px}
+.v-prompts .pr-cab p{color:var(--sub);max-width:680px}.v-prompts .pr-cab p b{color:var(--txt)}
+.v-prompts .pr-nums{display:flex;gap:22px;margin-top:16px;color:var(--sub);font-weight:600}.v-prompts .pr-nums b{color:var(--txt);font-size:24px;font-weight:800;margin-right:4px}
+.v-prompts .nueva{display:flex;gap:10px;align-items:center;padding:12px;margin:16px 0;flex-wrap:wrap}
+.v-prompts .nueva input{flex:1 1 280px;min-width:0;background:var(--card2);border:1px solid var(--borde);border-radius:16px;padding:12px 16px;color:var(--txt);font:inherit;outline:none;transition:border-color .2s}
+.v-prompts .nueva input:focus{border-color:#3a3a44}
+.v-prompts .estado{padding:5px 11px;border-radius:99px;font-size:12px;font-weight:700;background:#ffffff10;color:var(--sub);white-space:nowrap;transition:background .3s,color .3s}
+.v-prompts .estado.env{background:#0a84ff24;color:#64b5ff}
+.v-prompts .pr-acc{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.v-prompts .pr-acc button{padding:9px 16px;border-radius:99px;background:#ffffff12;font-weight:700;font-size:13px;transition:transform .4s var(--muelle),background .2s}
+.v-prompts .pr-acc button:hover{background:#ffffff1f}.v-prompts .pr-acc button:active{transform:scale(.92)}
+.v-prompts .pr-acc button.prim{background:var(--txt);color:#000}.v-prompts .pr-acc button.prim:hover{background:#fff}
+.v-prompts .destino{display:flex;align-items:center;gap:6px;margin-top:14px;color:var(--sub);font-weight:600;font-size:13px;flex-wrap:wrap}
+.v-prompts .destino button{padding:6px 12px;border-radius:99px;background:#ffffff0d;color:var(--sub);font-weight:700;font-size:12.5px;transition:transform .4s var(--muelle),background .2s,color .2s}
+.v-prompts .destino button.on{background:#0a84ff26;color:#64b5ff}.v-prompts .destino button:active{transform:scale(.92)}
+/* lista de problemas ── hilo ── prompt */
+.v-prompts .prl{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 64px minmax(0,1.25fr);align-items:start}
+.v-prompts .prl-lista{grid-column:1;display:flex;flex-direction:column;gap:6px;min-width:0}
+.v-prompts .prl-panel{grid-column:3;position:sticky;top:calc(84px + var(--sa-t,0px));min-width:0}
+.v-prompts .pr-hilo{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:3;opacity:0;transition:opacity .35s}
+.v-prompts .pr-hilo path{fill:none;stroke:var(--c,#0a84ff);stroke-linecap:round}
+.v-prompts .pr-hilo .h-brillo{stroke-width:12;opacity:.16;filter:blur(7px)}
+.v-prompts .pr-hilo .h-base{stroke-width:2.4;opacity:.95}
+.v-prompts .pr-hilo .h-flujo{stroke:#fff;stroke-width:2.4;stroke-dasharray:1.5 12.5;opacity:.75;animation:fluir 1.1s linear infinite}
+@keyframes fluir{to{stroke-dashoffset:-14}}
+.v-prompts .pr-hilo .h-p{fill:var(--c,#0a84ff)}
+.v-prompts .pr-hilo .h-aro{fill:none;stroke:var(--c,#0a84ff);stroke-width:2;opacity:.3}
+.v-prompts .pl-cab{display:flex;align-items:center;gap:9px;padding:16px 8px 6px;color:var(--sub);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em}
+.v-prompts .pl-cab:first-child{padding-top:2px}
+.v-prompts .pl-cab i{width:8px;height:8px;border-radius:50%;background:var(--c);box-shadow:0 0 10px var(--c)}
+.v-prompts .pl-cab b{color:var(--txt)}.v-prompts .pl-cab span{margin-left:auto;font-weight:600;letter-spacing:0;text-transform:none}
+.v-prompts .prob{position:relative;display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;padding:13px 18px 13px 16px;border-radius:18px;background:var(--card);border:1px solid var(--borde);transition:background .25s,border-color .25s,transform var(--muelle-d) var(--muelle)}
+.v-prompts .prob:hover{background:var(--card2);border-color:#2a2a30}.v-prompts .prob:active{transform:scale(.985)}
+.v-prompts .prob.sel{background:color-mix(in srgb,var(--c) 9%,var(--card));border-color:color-mix(in srgb,var(--c) 50%,transparent)}
+.v-prompts .prob::before{content:'';position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:3px;background:var(--c);opacity:0;transform:scaleY(.3);transition:opacity .25s,transform var(--muelle-d) var(--muelle)}
+.v-prompts .prob.sel::before{opacity:1;transform:none}
+.v-prompts .pb-est{width:12px;height:12px;border-radius:50%;border:2px solid #4a4a52;flex-shrink:0;margin-top:4px;transition:background .3s,border-color .3s,box-shadow .3s}
+.v-prompts .pb-est.env{background:var(--azul);border-color:var(--azul);box-shadow:0 0 10px #0a84ff99}
+.v-prompts .pb-c{flex:1;min-width:0}
+.v-prompts .pb-c b{display:block;font-size:15px;font-weight:700;line-height:1.3}
+.v-prompts .pb-ahora{color:var(--sub);font-size:13px;margin-top:4px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.v-prompts .pb-ahora em{font-style:normal;color:var(--tenue)}
+.v-prompts .pb-meta{display:flex;gap:6px;align-items:center;margin-top:9px;flex-wrap:wrap;font-size:12px;color:var(--tenue)}
+.v-prompts .pb-meta .estado{padding:3px 9px;font-size:11.5px}
+.v-prompts .tipo{padding:3px 9px;border-radius:99px;font-size:11.5px;font-weight:800}
+.v-prompts .tipo.arr{background:#ff453a1f;color:#ff8a80}.v-prompts .tipo.nue{background:#30d1581f;color:#7ee2a0}
+.v-prompts .panel{padding:18px 18px 16px;border-color:color-mix(in srgb,var(--c) 40%,var(--borde));max-height:calc(100vh - 210px);overflow:auto;transition:transform var(--muelle-d) var(--muelle),box-shadow .3s}
+.v-prompts .panel.agarrado{transform:scale(1.015);box-shadow:0 26px 70px #000d,0 0 0 1px color-mix(in srgb,var(--c) 70%,transparent)}
+.v-prompts .pn-cab{display:flex;align-items:center;gap:12px;cursor:grab;user-select:none;-webkit-user-select:none;transition:opacity .2s}
+.v-prompts .pn-cab.volando{opacity:.4}
+.v-prompts .pn-cab .asa6{color:var(--tenue);display:flex;padding:4px}
+.v-prompts .pn-cab small{display:block;color:var(--sub);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.v-prompts .pn-cab b{display:block;font-size:17px;font-weight:800;letter-spacing:-.01em;line-height:1.25}
+.v-prompts .pn-cab .estado{margin-left:auto;align-self:flex-start}
+.v-prompts .pn-l{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--sub);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px}
+.v-prompts .pn-nota,.v-prompts .pn-texto{display:block;width:100%;border-radius:14px;outline:none;resize:none;overflow:hidden;transition:border-color .2s}
+.v-prompts .pn-nota{background:var(--card2);border:1px solid var(--borde);color:var(--txt);font:inherit;font-size:14px;padding:10px 12px;min-height:46px}
+.v-prompts .pn-texto{background:#060607;border:1px solid #26262c;color:#d4d4da;font:12.5px/1.6 'JetBrains Mono',ui-monospace,monospace;padding:12px 14px;min-height:200px}
+.v-prompts .pn-nota:focus,.v-prompts .pn-texto:focus{border-color:color-mix(in srgb,var(--c) 65%,#3a3a44)}
+.v-prompts .manual{font-weight:600;text-transform:none;letter-spacing:0;color:var(--ama)}.v-prompts .manual button{color:#64b5ff;font-weight:700}
+.v-prompts .foco{animation:foco 1.4s ease-out}
+@keyframes foco{0%,30%{box-shadow:0 0 0 2px #0a84ff,0 0 40px #0a84ff55}100%{box-shadow:0 0 0 0 #0a84ff00}}
+.v-prompts .panel .pr-acc{position:sticky;bottom:-16px;margin:14px -18px -16px;padding:12px 18px 16px;background:var(--card);z-index:1}
+.v-prompts .panel .pr-acc::before{content:'';position:absolute;left:0;right:0;top:-26px;height:26px;background:linear-gradient(color-mix(in srgb,var(--card) 0%,transparent),var(--card));pointer-events:none}
+/* en la v2, «.fluida .card{padding:0}» pisaba los rellenos de la demo */
+.v-prompts .card.big{padding:26px 28px}.v-prompts .card.nueva{padding:12px}.v-prompts .card.panel{padding:18px 18px 16px}
+.v-prompts .pr-vacio{color:var(--tenue);padding:22px 10px;line-height:1.5}.v-prompts .pr-vacio b{color:var(--sub);font-family:'JetBrains Mono',ui-monospace,monospace}
+.v-prompts .pr-acc button.quitar{margin-left:auto;background:none;color:var(--tenue)}.v-prompts .pr-acc button.quitar:hover{color:var(--mal);background:#ff453a1a}
+.t-nueva .t-cod{margin-left:auto}
+@media(max-width:820px){.v-prompts .prl{grid-template-columns:minmax(0,1fr)}.v-prompts .pr-hilo{display:none}.v-prompts .prl-panel{position:relative;top:0;grid-column:1;margin:2px 0 10px 18px}.v-prompts .prl-panel::before{content:'';position:absolute;left:-11px;top:-10px;bottom:40px;width:2px;border-radius:2px;background:linear-gradient(var(--c,#0a84ff),transparent)}.v-prompts .panel{max-height:none}.v-prompts .pr-cab h2{font-size:24px}.v-prompts .card.big{padding:20px}#tabs .solo-pc{display:none}}
+/* los botones de aquí, sin el aspecto del navegador (como en Setups), sin peso: cualquier clase manda */
+:where(.v-prompts, .t-nueva, .t-comps, .fantasma) button{background:none;border:0;padding:0;margin:0;cursor:pointer;color:inherit;font:inherit;text-align:inherit}
