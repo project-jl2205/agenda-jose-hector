@@ -31,6 +31,7 @@ export async function iniciar() {
     db.operacion_dibujos = [];
   }
   if (!db.claude_fichas) db.claude_fichas = FICHAS_DEMO.map(f => ({ ...f, actualizado_en: ahora() }));   // (tanda de Prompts)
+  if (!db.sesiones_claude) db.sesiones_claude = sesionesDemo(db.perfiles || []);   // (sesiones de Claude en Hoy, SQL 007)
   guardar();
   prepararArchivosDemo();
   if ('BroadcastChannel' in window) {
@@ -54,7 +55,7 @@ function aplicarLocal({ tabla, tipo, nueva, vieja }) {
 }
 
 // lo privado (noticias quitadas, notas de mercado) solo le llega a su dueño, como hace la RLS de Supabase en tiempo real
-const PRIVADAS = { noticias_ocultas: 'usuario', notas_mercado: 'autor' };
+const PRIVADAS = { noticias_ocultas: 'usuario', notas_mercado: 'autor', sesiones_claude: 'dueno' };
 const esMio = ({ tabla, nueva, vieja }) => !PRIVADAS[tabla] || (nueva || vieja)?.[PRIVADAS[tabla]] === usuario();
 
 function difundir(cambio) {
@@ -150,6 +151,12 @@ function validar(tabla, f, antes) {
       && /^#[0-9a-f]{6}$/i.test(f.color || '') && (f.texto == null || String(f.texto).length <= 140);
     if (!ok) throw new Error('Hay un dato que no es válido.');
     if (!antes && (db.operaciones || []).find(o => o.id === f.operacion_id)?.borrado_en !== null) throw new Error('No tienes permiso para esto.');
+  }
+  // sesiones de Claude (SQL 007): las sube el PC de cada uno; desde la web su dueño solo puede «quitarla de Hoy»
+  if (tabla === 'sesiones_claude') {
+    if (!antes) throw new Error('No tienes permiso para esto.');
+    const cambia = Object.keys({ ...antes, ...f }).some(k => !['quitada_en', 'actualizado_en'].includes(k) && JSON.stringify(antes[k]) !== JSON.stringify(f[k]));
+    if (cambia || antes.dueno !== usuario()) throw new Error('No tienes permiso para esto.');
   }
   if (tabla === 'claude_fichas' && (!/^[a-z0-9-]{1,30}$/.test(f.proyecto || '') || !/^#[0-9a-f]{6}$/i.test(f.color || ''))) throw new Error('Hay un dato que no es válido.');
   // notas de mercado: cada uno solo las suyas, y nunca vacías ni de más de 20.000 caracteres (SQL 004)
@@ -390,6 +397,36 @@ function semillas() {
     operacion_dibujos: [],
     claude_fichas: FICHAS_DEMO.map(f => ({ ...f, actualizado_en: ahora() })),
   };
+}
+
+// sesiones de Claude DE EJEMPLO (SQL 007; las de verdad las sube el PC de cada uno al acabar cada turno de Claude): títulos y
+// textos INVENTADOS, porque este código es público. De ayer, de hoy y de hace unos días; una ficha que espera el OK, una de
+// Héctor (Jose no la ve: es privada) y una ya quitada de Hoy.
+function sesionesDemo(perfiles) {
+  const J = perfiles.find(p => p.email === 'jose@demo')?.id, H = perfiles.find(p => p.email === 'hector@demo')?.id;
+  if (!J) return [];
+  const hace = h => new Date(Date.now() - h * 36e5).toISOString();
+  const ayer = h => { const d = new Date(); d.setDate(d.getDate() - 1); d.setHours(h, 15, 0, 0); return d.toISOString(); };
+  const s = (n, o) => ({ id: `s-00000000-0000-4000-8000-${String(n).padStart(12, '0')}`, dueno: J, tipo: 'sesion', grupo: null, grupo_orden: null,
+    estado: null, ultimo_pedido: null, ultima_respuesta: null, pendiente: null, prompt: null, mensajes: 0, primera_en: null, quitada_en: null,
+    actualizado_en: hace(0.1), ...o });
+  return [
+    s(1, { titulo: 'Bot de ejemplo: examen fuera de muestra', grupo: 'BOT TERMINAL', grupo_orden: 0, ultima_en: hace(0.5),
+      ultimo_pedido: 'pásale el examen con los datos del año pasado', ultima_respuesta: 'Hecho: aprueba fuera de muestra. Falta probarlo unos días en papel.' }),
+    s(2, { titulo: 'Agenda de ejemplo: pestaña nueva', grupo: 'AGENDA', grupo_orden: 1, ultima_en: ayer(22),
+      ultimo_pedido: 'que quede centrado', ultima_respuesta: 'Centrado. Lo he probado en el PC y en el móvil.' }),
+    s(3, { titulo: 'Mapa de liquidez de ejemplo', grupo: 'MAPA LIQUIDEZ', grupo_orden: 2, ultima_en: hace(24 * 3),
+      ultimo_pedido: 'pon el buscador a la derecha', ultima_respuesta: 'Puesto; falta que me digas si te gusta el tamaño.' }),
+    s(4, { titulo: 'Sesión suelta de ejemplo', ultima_en: ayer(11), ultimo_pedido: 'revisa el histórico del calendario',
+      ultima_respuesta: 'Revisado: no falta ningún día.' }),
+    s(5, { titulo: 'Sesión ya quitada de Hoy', grupo: 'AGENDA', grupo_orden: 1, ultima_en: hace(5), quitada_en: hace(4),
+      ultimo_pedido: 'nada más', ultima_respuesta: 'Vale.' }),
+    ...(H ? [s(6, { dueno: H, titulo: 'Sesión de Héctor (Jose no la ve)', grupo: 'AGENDA', grupo_orden: 0, ultima_en: hace(1),
+      ultimo_pedido: 'mira mis setups', ultima_respuesta: 'Mirados.' })] : []),
+    s(7, { id: 'f-0001', tipo: 'ficha', titulo: 'Ficha de ejemplo: arrancar algo al encender el PC', grupo: 'AGENDA', grupo_orden: 1,
+      estado: 'esperando-ok', ultima_en: hace(3), pendiente: 'Falta tu sí para instalar la tarea que lo arranca al encender el PC.',
+      ultima_respuesta: 'Preparado y probado a mano.', prompt: 'Modo DESPACHO (ejemplo). Lee la ficha 0001 y haz SOLO esa tarea.' }),
+  ];
 }
 
 // fichas de los proyectos para los prompts, DE EJEMPLO: las de verdad van en la base (SQL 006), porque llevan rutas y puertos

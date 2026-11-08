@@ -18,9 +18,10 @@ export const TABLAS = [
   'notas_mercado',                                             // SQL 004 (notas de mercado, cada uno las suyas)
   'operaciones', 'operacion_dibujos',                          // SQL 005 (operaciones publicadas desde el Terminal)
   'claude_fichas',                                             // SQL 006 (fichas de los proyectos para los prompts)
+  'sesiones_claude',                                           // SQL 007 (sesiones de Claude en Hoy, cada uno las suyas)
 ];
 // si una de estas faltara en la base (SQL sin aplicar), la agenda arranca igual sin ella en vez de no arrancar
-const OPCIONALES = new Set(['dias_calendario', 'noticias_clave', 'noticias_ocultas', 'notas_mercado', 'operaciones', 'operacion_dibujos', 'claude_fichas']);
+const OPCIONALES = new Set(['dias_calendario', 'noticias_clave', 'noticias_ocultas', 'notas_mercado', 'operaciones', 'operacion_dibujos', 'claude_fichas', 'sesiones_claude']);
 const PK = {
   tareas_hechas: ['tarea_id', 'ocurrencia'], notas_semana: ['semana', 'slot'],
   setup_marcas: ['setup_id', 'paso'], setup_estado: ['setup_id'], simbolos: ['simbolo'],

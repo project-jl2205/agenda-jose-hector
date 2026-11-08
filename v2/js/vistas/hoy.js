@@ -3,6 +3,8 @@
 // barra del día, tira de la semana con gota y línea del día. Cambiar de día no recarga la página: la
 // gota se desliza y la línea se repinta (la dirección #/dia/AAAA-MM-DD se actualiza igual).
 // 8-nov (decisión de Jose Luis): sin la bandeja ni los apuntes de Mercado; Hoy es una sola columna centrada.
+// 8-nov, ficha 0002 (SQL 007): arriba, «Claude · tus sesiones» — tus sesiones de Claude y las fichas del modo despacho, para
+// retomarlas con un clic (solo el día de hoy; cada uno ve solo las suyas).
 
 import { el, chip, avatar, error, reemplazar, modal } from '../../../js/ui.js';
 import { ocurrencias, claveOcurrencia, describir } from '../../../js/recurrencia.js';
@@ -56,8 +58,9 @@ export function montar(cont, ctx) {
   const barraDias = el('div', { class: 'dias-fila' });
   const filtros = el('div', { class: 'filtros-dia' });
   const linea = el('div', { class: 'card linea' });
+  const ses = el('div', { class: 'card ses', hidden: true });
   cont.append(el('div', { class: 'hoy-rejilla' },
-    el('div', { class: 'hoy-main' }, cuenta, barraDias, filtros, linea)));
+    el('div', { class: 'hoy-main' }, ses, cuenta, barraDias, filtros, linea)));
 
   // ---- acciones ----
   async function alternar(t, d, nodo) {
@@ -180,6 +183,7 @@ export function montar(cont, ctx) {
     } else pintarDias();
     pintarCuenta();
     pintarLinea(true);
+    pintarSesiones();
   }
 
   // ---- filtros ----
@@ -254,9 +258,94 @@ export function montar(cont, ctx) {
     if (animar) entrada(linea.querySelectorAll('.ev'), { dy: 10, paso: 22 });
   }
 
-  function pintar() { pintarCuenta(); pintarDias(); pintarFiltros(); pintarLinea(false); }
-  pintarCuenta(); pintarDias(); pintarFiltros(); pintarLinea(true);
-  const quitar = store.on(['tareas', 'tareas_hechas', 'etiquetas', 'grupos', 'perfiles', 'comentarios'], ts => {
+  // ---- Claude · tus sesiones (SQL 007, ficha 0002) — arriba; solo el día de hoy y solo las tuyas (la base no da las del otro) ----
+  // Las sube tu PC al acabar cada turno de Claude (herramientas/sesiones_claude.py). «Continuar» reabre esa sesión en Claude
+  // (solo en el PC; las fichas, con su prompt); «×» la quita de Hoy y vuelve a salir si la sesión se mueve.
+  const SES_SEMANA = 'agenda-jh-ses-semana', SES_PLEGADA = 'agenda-jh-ses-plegada', SES_DEST = 'agenda-jh-destino';
+  const SES_ESTADOS = { 'esperando-ok': 'espera tu OK', 'en-curso': 'en curso', bloqueada: 'bloqueada', pendiente: 'pendiente', hecha: 'hecha' };
+  const leerLS = (k, d = '') => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
+  const ponerLS = (k, v) => { try { localStorage.setItem(k, v); } catch { /* nada */ } };
+  const enPC = () => !matchMedia('(max-width: 820px)').matches;
+  const ms = iso => new Date(iso).getTime();
+  const cuandoSes = iso => {
+    const d = F.diaDe(iso), h = F.fmtHora(iso);
+    if (d === F.hoy()) return `hoy ${h}`;
+    if (d === F.sumarDias(F.hoy(), -1)) return `ayer ${h}`;
+    return `${F.NOMBRES_DIA[F.diaSemana(d) - 1].toLowerCase()} ${+d.slice(8)} · ${h}`;
+  };
+  function enlaceSes(s) {
+    const dest = ['antigravity-ide', 'antigravity', 'vscode'].includes(leerLS(SES_DEST)) ? leerLS(SES_DEST) : 'antigravity-ide';
+    return s.tipo === 'ficha' ? `${dest}://anthropic.claude-code/open?prompt=${encodeURIComponent(s.prompt || '')}`
+      : `${dest}://anthropic.claude-code/open?session=${encodeURIComponent(s.id.slice(2))}`;
+  }
+  async function quitarSes(s) {
+    try {
+      await store.actualizar('sesiones_claude', { id: s.id }, { quitada_en: new Date().toISOString() });
+      avisar('Quitada de Hoy', s.titulo.length > 26 ? '' : s.titulo, '#8e8e96', async () => {
+        try { await store.actualizar('sesiones_claude', { id: s.id }, { quitada_en: null }); } catch (e) { error(e); }
+      });
+    } catch (e) { error(e); }
+  }
+  function filaSes(s) {
+    const puede = enPC() && (s.tipo === 'sesion' || !!s.prompt);
+    const ir = puede
+      ? el('a', { class: 'ses-ir', href: enlaceSes(s), title: s.tipo === 'ficha' ? 'Abre una pestaña nueva de Claude con el prompt de la ficha' : 'Abre esta sesión en Claude',
+        onclick: () => avisar(s.tipo === 'ficha' ? 'Abriendo la ficha en Claude' : 'Abriendo la sesión en Claude', '↗', 'var(--azul)') }, 'Continuar')
+      : el('button', { class: 'ses-ir', type: 'button', title: 'Solo en el PC' }, enPC() ? 'Continuar' : 'solo en el PC');
+    if (!puede) ir.disabled = true;
+    const linea = (et, txt, cls = '') => (txt ? el('p', { class: `ses-l ${cls}` }, el('span', {}, et), txt) : null);
+    const x = el('button', { class: 'ses-x', type: 'button', title: 'Quitar de Hoy (vuelve a salir si la sesión se mueve)', onclick: () => quitarSes(s) }, '×');
+    return el('div', { class: `ses-f${s.tipo === 'ficha' ? ' ficha' : ''}`, dataset: { id: s.id } },
+      el('div', { class: 'ses-t' },
+        el('b', { title: s.titulo }, s.titulo),
+        el('small', { class: 'ses-meta' }, cuandoSes(s.ultima_en),
+          s.tipo === 'ficha' ? el('span', { class: `ses-est e-${s.estado || 'pendiente'}` }, `ficha · ${SES_ESTADOS[s.estado] || s.estado || 'pendiente'}`) : null),
+        s.tipo === 'ficha' ? linea('Pendiente: ', s.pendiente) : linea('Tú: ', s.ultimo_pedido),
+        linea(s.tipo === 'ficha' ? 'Resultado: ' : 'Claude: ', s.ultima_respuesta, 'tenue')),
+      el('div', { class: 'ses-a' }, ir, x));
+  }
+  function pintarSesiones() {
+    const hay = esHoy() && (!store.disponible || store.disponible('sesiones_claude'));
+    const yo = store.usuarioId(), desde = Date.now() - 7 * 864e5;
+    const todas = hay ? store.filas('sesiones_claude', s => s.dueno === yo && ms(s.ultima_en) >= desde && !(s.quitada_en && ms(s.quitada_en) >= ms(s.ultima_en)))
+      .sort((a, b) => ms(b.ultima_en) - ms(a.ultima_en)) : [];
+    ses.hidden = !todas.length;
+    if (!todas.length) { reemplazar(ses); return; }
+    const inicioAyer = F.madridAInstante(F.sumarDias(F.hoy(), -1), '00:00').getTime();
+    const recientes = todas.filter(s => ms(s.ultima_en) >= inicioAyer || s.estado === 'esperando-ok');
+    const semana = leerLS(SES_SEMANA) === '1', plegada = leerLS(SES_PLEGADA) === '1';
+    const lista = semana ? todas : recientes;
+    const esperan = lista.filter(s => s.estado === 'esperando-ok');
+    const grupos = new Map();
+    for (const s of lista.filter(s => s.estado !== 'esperando-ok')) {
+      const g = s.grupo || 'Sin grupo';
+      if (!grupos.has(g)) grupos.set(g, { orden: s.grupo ? (s.grupo_orden ?? 50) : 99, filas: [] });
+      grupos.get(g).filas.push(s);
+    }
+    const subida = todas.reduce((m, s) => (s.actualizado_en && s.actualizado_en > m ? s.actualizado_en : m), '');
+    const bloque = (titulo, filas, cls = '') => el('div', { class: `ses-g ${cls}` },
+      el('div', { class: 'ses-gt' }, titulo, el('span', {}, String(filas.length))), ...filas.map(filaSes));
+    ses.classList.toggle('plegada', plegada);
+    reemplazar(ses,
+      el('div', { class: 'ses-cab' },
+        el('button', { class: 'ses-titulo', type: 'button', title: plegada ? 'Desplegar' : 'Plegar',
+          onclick: () => { ponerLS(SES_PLEGADA, plegada ? '0' : '1'); pintarSesiones(); } },
+          el('span', { class: 'etq' }, 'Claude · tus sesiones'), el('span', { class: 'ses-n' }, plegada ? `${recientes.length} de ayer y hoy` : '')),
+        el('small', { class: 'ses-sub' }, subida ? `subidas por tu PC · ${cuandoSes(subida)}` : ''),
+        !plegada && (todas.length > recientes.length || semana)
+          ? el('button', { class: 'ses-ver', type: 'button', onclick: () => { ponerLS(SES_SEMANA, semana ? '0' : '1'); pintarSesiones(); } },
+            semana ? 'Solo ayer y hoy' : `Ver la semana (${todas.length})`)
+          : null),
+      plegada ? null : el('div', { class: 'ses-cuerpo' },
+        lista.length ? null : el('p', { class: 'ses-vacio' }, 'Nada de ayer ni de hoy.'),
+        esperan.length ? bloque('Esperando tu OK', esperan, 'ses-ok') : null,
+        ...[...grupos.entries()].sort((a, b) => a[1].orden - b[1].orden || a[0].localeCompare(b[0])).map(([g, { filas }]) => bloque(g, filas))));
+  }
+
+  function pintar() { pintarCuenta(); pintarDias(); pintarFiltros(); pintarLinea(false); pintarSesiones(); }
+  pintarCuenta(); pintarDias(); pintarFiltros(); pintarLinea(true); pintarSesiones();
+  const quitar = store.on(['tareas', 'tareas_hechas', 'etiquetas', 'grupos', 'perfiles', 'comentarios', 'sesiones_claude'], ts => {
+    if (ts.has('sesiones_claude')) { pintarSesiones(); if (ts.size === 1) return; }
     pintarCuenta();
     // la tira solo cambia de cuentas: se repintan los contadores sin mover la gota
     const dias = F.diasDeSemana(F.semanaISO(dia));
@@ -264,7 +353,8 @@ export function montar(cont, ctx) {
     if (ts.has('perfiles') || ts.has('etiquetas')) pintarFiltros();
     pintarLinea(false);
   });
-  const reloj = setInterval(() => { if (esHoy()) { pintarCuenta(); pintarLinea(false); } }, 60000);
+  let hoySes = F.hoy();   // pasada la medianoche, «hoy»/«ayer» de las sesiones cambian
+  const reloj = setInterval(() => { if (esHoy()) { pintarCuenta(); pintarLinea(false); } if (F.hoy() !== hoySes) { hoySes = F.hoy(); pintarSesiones(); } }, 60000);
   const alCambiarTam = () => colocarGota(true);
   addEventListener('resize', alCambiarTam);
   return () => { quitar(); clearInterval(reloj); removeEventListener('resize', alCambiarTam); };
