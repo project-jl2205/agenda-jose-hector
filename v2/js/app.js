@@ -1,9 +1,10 @@
 // AGENDA JOSE · HÉCTOR — v2 «Fluido». Misma base de datos, mismo login y misma lógica que la agenda
 // de siempre (../js/): solo cambia el marco (isla arriba, barra con gota abajo, páginas con muelle) y
-// las vistas Semana y Hoy, que son nuevas. Setups, Mercado, Winrate, Ajustes y los editores son los de
-// siempre con la piel Fluido (css/fluido.css).
-// Rutas (hash): #/calendario[/2026-11] · #/semana[/2026-W42] · #/dia[/2026-10-13] · #/setups (= operaciones publicadas) · #/notas ·
-// #/mercado · #/ajustes. Sin Winrate ni setups planificados: «Solo operaciones» (decisión de Jose Luis, 7-nov).
+// las vistas Semana y Hoy, que son nuevas. Ajustes y los editores son los de siempre con la piel Fluido (css/fluido.css).
+// Rutas (hash): #/calendario[/2026-11] · #/semana[/2026-W42] · #/dia[/2026-10-13] · #/setups (= operaciones publicadas) ·
+// #/prompts · #/notas · #/ajustes. Sin Winrate ni setups planificados: «Solo operaciones» (decisión de Jose Luis, 7-nov).
+// Sin Mercado (8-nov, decisión suya): ni pestaña ni sus apuntes en Semana y Hoy (siguen guardados y se ven en la agenda
+// clásica); #/mercado lleva a Semana.
 
 import { CONFIG } from '../../js/config.js';
 import * as db from '../../js/db.js';
@@ -125,7 +126,6 @@ const SVG = {
   setups: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 17l5-6 4 4 8-9"/></svg>',
   prompts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-5-6-5"/><path d="M12 19h8"/></svg>',
   notas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M9 10h7M9 14h7M9 18h4"/></svg>',
-  mercado: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v18M17 3v18"/><rect x="4.5" y="7" width="5" height="9" rx="1.5"/><rect x="14.5" y="5" width="5" height="7" rx="1.5"/></svg>',
   winrate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
   ajustes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>',
 };
@@ -138,7 +138,6 @@ const VISTAS = {
   setups:  { titulo: 'Setups',  tab: true, cargar: () => import('./vistas/operaciones.js') },
   prompts: { titulo: 'Prompts', tab: true, soloPC: true, cargar: () => import('./vistas/prompts.js') },   // en el móvil no (las ideas se marcan con </> en Semana)
   notas:   { titulo: 'Notas',   tab: true, cargar: () => import('./vistas/notas.js') },
-  mercado: { titulo: 'Mercado', tab: true, cargar: () => import('../../js/vistas/mercado.js'), clasica: true },
   ajustes: { titulo: 'Ajustes', tab: false, cargar: () => import('../../js/vistas/ajustes.js'), clasica: true },
 };
 const ORDEN = Object.keys(VISTAS);

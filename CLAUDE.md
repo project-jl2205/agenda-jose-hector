@@ -1,7 +1,9 @@
 # AGENDA JOSE · HÉCTOR — web (instrucciones para Claude)
 
 App solo para Jose Luis y Héctor. Desde el 7-nov-2026 la agenda es la **v2 «Fluido»** (`v2/`): Calendario, Semana, Hoy,
-Setups (= las operaciones que Jose Luis publica desde su Terminal), Prompts (solo en el PC), Notas (privadas) y Mercado.
+Setups (= las operaciones que Jose Luis publica desde su Terminal), Prompts (solo en el PC) y Notas (privadas).
+Desde el 8-nov (decisión de Jose Luis) la v2 no tiene Mercado (ni pestaña ni sus apuntes en Semana y Hoy) y Hoy no tiene
+bandeja (una sola columna centrada); esos datos siguen guardados y la clásica los enseña. No los vuelvas a poner sin que él lo pida.
 `index.html` (la dirección de siempre) abre la v2; la agenda de antes sigue en `clasica.html` (de reserva).
 Este repositorio es **solo la web** (GitHub Pages, público). Los datos viven en Supabase. El esquema de la base de datos
 (`sql/`), las herramientas y las pruebas de la web están en el PC Windows de Jose Luis (`sistema/agenda/` del proyecto), no aquí.
@@ -32,11 +34,11 @@ Este repositorio es **solo la web** (GitHub Pages, público). Los datos viven en
 
 ## Mapa
 - `v2/index.html` · `v2/css/fluido.css` · `v2/js/app.js` (arranque, isla, barra de pestañas, rutas #/calendario,
-  #/semana, #/dia, #/setups, #/prompts, #/notas, #/mercado, #/ajustes) · `v2/js/motor.js` (muelles)
+  #/semana, #/dia, #/setups, #/prompts, #/notas, #/ajustes; #/mercado lleva a Semana) · `v2/js/motor.js` (muelles)
 - `v2/js/vistas/`: `calendario.js`, `semana.js`, `hoy.js`, `notas.js`, `operaciones.js` (la pestaña Setups), `prompts.js`
 - Compartido con la clásica: `js/store.js` (copia en memoria + tiempo real) · `js/db.js` (Supabase o demo) ·
   `js/demo.js` · `js/fechas.js` (Europe/Madrid) · `js/recurrencia.js` (RRULE = dateutil) · `js/ui.js` ·
-  `js/vistas/mercado.js`, `ajustes.js`, `tarea-editor.js`, `comentarios.js` (la v2 los usa con su piel)
+  `ajustes.js`, `tarea-editor.js`, `comentarios.js` (la v2 los usa con su piel; `js/vistas/mercado.js` ya solo lo usa la clásica)
 - Cada vista exporta `montar(contenedor, ctx) -> desmontar`.
 
 ## Probar y publicar

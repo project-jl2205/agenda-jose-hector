@@ -192,18 +192,12 @@ button.estado-p{cursor:pointer}
 .liquido i{position:absolute;inset:0 auto 0 0;border-radius:99px;background:linear-gradient(90deg,#46eb00,#b4ff6a 60%,#ef64f2);box-shadow:0 0 24px #46eb0066}
 .sub-hero{color:var(--sub);margin-top:12px}.sub-hero b{color:var(--txt)}
 .arrastre:not(:empty){margin-top:14px}
-.duo{display:flex;flex-direction:column;gap:12px}
+.duo{display:flex;flex-direction:column;gap:12px}.duo>.per{flex:1}   /* 8-nov: sin la tarjeta de la bandeja, las dos de personas llenan la columna */
 .per{padding:18px 22px!important;display:flex;align-items:center;gap:14px;color:inherit}
 a.per{transition:border-color .2s,transform var(--muelle-d) var(--muelle)}a.per:hover{border-color:#2c2c32}a.per:active{transform:scale(.97)}
 .av-g{width:40px;height:40px;font-size:18px;flex-shrink:0}
-.av-bandeja{display:grid;place-items:center;border-radius:50%;background:#2c2c32;color:var(--txt);font-weight:800}
 .per b{display:block;font-size:28px;font-weight:800;letter-spacing:-.03em;line-height:1}
 .per small{color:var(--sub);display:block;margin-top:3px}
-.chips-m{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 14px;margin-bottom:6px;scrollbar-width:none}
-.chipm{flex-shrink:0;padding:12px 16px;border-radius:20px;background:var(--card);border:1px solid var(--borde);display:flex;gap:10px;align-items:center;color:inherit;transition:border-color .2s,transform var(--muelle-d) var(--muelle)}
-.chipm:hover{border-color:#2c2c32}.chipm:active{transform:scale(.96)}
-.chipm i{width:8px;height:8px;border-radius:50%;background:var(--mal)}
-.chipm b{font-size:14px}.chipm small{color:var(--sub);display:block;font-size:12px}
 .cols2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
 .col{display:flex;flex-direction:column;gap:16px;min-width:0}
 .grupo .gh{display:flex;align-items:center;gap:12px;padding:18px 20px;width:100%;text-align:left;cursor:pointer;outline:none;user-select:none}
@@ -261,9 +255,8 @@ a.per{transition:border-color .2s,transform var(--muelle-d) var(--muelle)}a.per:
 .st-rm{width:40px;border-radius:12px;background:#ffffff0f;border:0;color:var(--sub);cursor:pointer}
 
 /* hoy */
-.hoy-rejilla{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+.hoy-rejilla{max-width:760px;margin:0 auto}   /* 8-nov: sin la bandeja, Hoy es una sola columna centrada */
 .hoy-main{min-width:0}
-.hoy-lado{position:sticky;top:84px}
 .cuenta{padding:26px 28px!important;margin-bottom:16px}
 .cuenta .fila{display:flex;justify-content:space-between;align-items:flex-end;gap:20px}
 .cuenta h2{font-size:34px;font-weight:800;letter-spacing:-.03em;line-height:1.1;margin-top:4px;overflow-wrap:anywhere}
@@ -313,19 +306,10 @@ a.per{transition:border-color .2s,transform var(--muelle-d) var(--muelle)}a.per:
 .fluida .jornada::after{content:'';flex:1;height:1px;background:repeating-linear-gradient(90deg,#ffd60a55 0 6px,transparent 6px 12px)}
 .fluida .falta{background:#ff453a22;color:#ff8a80;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px}
 .fluida .estado-mini{font-size:11px;padding:2px 8px;border-radius:99px;background:#ffffff10;letter-spacing:.03em}
-.bandeja{padding:20px 18px!important}
-.bandeja .t-nueva{margin:10px -6px 4px}
-.lista-b{display:flex;flex-direction:column;margin:0 -8px}
-.bandeja .t{padding:9px 8px;gap:12px}
-.bandeja .ck{width:22px;height:22px}.bandeja .ck svg{width:12px;height:12px}
 .prog{padding:5px 11px;border-radius:99px;background:#0a84ff1f;color:#64b5ff;border:0;font-weight:700;font-size:12px;cursor:pointer;opacity:0;transition:opacity .2s,background .2s}
 .t:hover .prog,.prog:focus{opacity:1}.prog:hover{background:#0a84ff33}
 @media(hover:none){.prog{opacity:1}}
-.hechas-b{margin-top:10px;color:var(--sub);font-size:13px}.hechas-b summary{cursor:pointer;padding:6px 0;font-weight:600}
-.vacio-b{color:var(--tenue);padding:14px 0;font-size:14px}
-.nota-lado{color:var(--tenue);font-size:12.5px;margin-top:12px}
 
-@media(max-width:1000px){.hoy-rejilla{grid-template-columns:minmax(0,1fr)}.hoy-lado{position:static}}
 @media(max-width:820px){
   .marco{padding:72px 14px 120px}
   .hero,.cols2{grid-template-columns:minmax(0,1fr)}

@@ -3,6 +3,7 @@
 // una tarjeta por persona, grupos que se pliegan con muelle, marcar con onda y aviso en la isla.
 // «Para Claude» (8-nov, SQL 006): </> en cada tarea y en «Nueva tarea…» (también desde el móvil); la tarea guarda su
 // proyecto en tareas.claude y en el PC sale en la pestaña Prompts con su prompt ya hecho («↗ prompt» lleva a él).
+// 8-nov (decisión de Jose Luis): sin Mercado ni bandeja → fuera los apuntes de mercado de la semana y la tarjeta «en la bandeja».
 
 import { el, modal, campo, selector, confirmar, avatar, debounce, error, reemplazar } from '../../../js/ui.js';
 import { editarTarea } from '../../../js/vistas/tarea-editor.js';
@@ -41,7 +42,6 @@ export function montar(cont, ctx) {
     const h = filas.filter(({ t }) => hecha(t)).length;
     return { filas, n: filas.length, hechas: h, pct: pctDe(h, filas.length) };
   };
-  const bandejaPend = () => store.vivas('tareas', t => !t.fecha && !t.grupo_id && !t.rrule && !store.hecha(t.id)).length;
 
   // ---- «para Claude» (SQL 006): sin la tabla de fichas en la base no sale nada de esto ----
   const conClaude = () => !store.disponible || store.disponible('claude_fichas');
@@ -60,12 +60,11 @@ export function montar(cont, ctx) {
 
   // ---- esqueleto ----
   const hero = el('div', { class: 'hero' });
-  const chips = el('div', { class: 'chips-m' });
   const col1 = el('div', { class: 'col' });
   const col2 = el('div', { class: 'col' });
   const vacioGrupos = el('div', { class: 'card libre', hidden: true });
   const notas = el('div', { class: 'notas-sem' });
-  cont.append(hero, chips, vacioGrupos, el('div', { class: 'cols2' }, col1, col2),
+  cont.append(hero, vacioGrupos, el('div', { class: 'cols2' }, col1, col2),
     el('button', { class: 'nuevo-grupo', onclick: () => editarGrupo(null) }, '+ Nuevo grupo'),
     el('div', { class: 'etq sec-f' }, 'Notas de la semana'),
     el('div', { class: 'card notas-card' }, notas, el('div', { class: 'nota-pie-g' }, 'Se guardan solas y las ve el otro al momento')));
@@ -75,7 +74,7 @@ export function montar(cont, ctx) {
   function construirHero() {
     const T = totales();
     const liq = el('i', { style: { width: `${T.pct}%` } });
-    N = { pct: el('span', {}, String(T.pct)), hechas: el('b', {}, String(T.hechas)), total: el('span', {}, String(T.n)), liq, personas: new Map(), bandeja: null, arrastre: el('div', { class: 'arrastre' }) };
+    N = { pct: el('span', {}, String(T.pct)), hechas: el('b', {}, String(T.hechas)), total: el('span', {}, String(T.n)), liq, personas: new Map(), arrastre: el('div', { class: 'arrastre' }) };
     const nav = el('div', { class: 'sem-nav' },
       svgEn('button', { class: 'redondo', title: 'Semana anterior', onclick: () => navegar(`semana/${anterior}`) }, IZQ),
       !esActual && el('button', { class: 'pildora', onclick: () => navegar('semana') }, 'Esta semana'),
@@ -96,9 +95,7 @@ export function montar(cont, ctx) {
       av.classList.add('av-g');
       if (p.id === store.usuarioId()) av.classList.add('en-linea');
       return el('div', { class: 'card per', style: { '--c': p.color } }, av, el('div', {}, b, sm));
-    }),
-    el('a', { class: 'card per', href: '#/dia', title: 'Ver la bandeja en Hoy' },
-      el('span', { class: 'av-g av-bandeja' }, '✦'), el('div', {}, N.bandeja = el('b', {}, '0'), el('small', {}, 'en la bandeja'))));
+    }));
     reemplazar(hero, grande, duo);
     pintarNumeros(true);
   }
@@ -115,20 +112,7 @@ export function montar(cont, ctx) {
       const p = store.perfil(id);
       sm.textContent = `de ${suyas.length} · ${p?.nombre || ''}${id === store.usuarioId() ? ' · tú' : ''}`;
     }
-    if (salto) N.bandeja.textContent = bandejaPend(); else rodar(N.bandeja, bandejaPend());
     pintarArrastre();
-  }
-
-  // ---- mercado de la semana (solo lectura: se edita en Mercado) ----
-  function pintarChips() {
-    const desde = F.madridAInstante(F.lunesDe(semana), '00:00').getTime();
-    const hasta = desde + 7 * 864e5;
-    const ev = store.vivas('anotaciones', a => { const x = new Date(a.fecha_hora).getTime(); return x >= desde && x < hasta; })
-      .sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora));
-    reemplazar(chips, ev.map(a => el('a', { class: 'chipm', href: '#/mercado', title: 'Ver en Mercado' },
-      el('i', { style: { opacity: String(0.34 + a.importancia * 0.22) } }),
-      el('div', {}, el('b', {}, a.titulo), el('small', {}, `${F.NOMBRES_DIA[F.diaSemana(F.diaDe(a.fecha_hora)) - 1]} ${F.fmtHora(a.fecha_hora)}`)))));
-    chips.hidden = !ev.length;
   }
 
   // ---- grupos ----
@@ -422,12 +406,10 @@ export function montar(cont, ctx) {
 
   // ---- pintar ----
   construirHero();
-  pintarChips();
   pintarGrupos(true);
   pintarNotas();
-  const quitar = store.on(['grupos', 'tareas', 'tareas_hechas', 'notas_semana', 'perfiles', 'anotaciones'], ts => {
+  const quitar = store.on(['grupos', 'tareas', 'tareas_hechas', 'notas_semana', 'perfiles'], ts => {
     if (ts.has('perfiles')) construirHero(); else pintarNumeros(false);
-    if (ts.has('anotaciones')) pintarChips();
     if (ts.has('grupos') || ts.has('tareas') || ts.has('tareas_hechas') || ts.has('perfiles')) pintarGrupos(false);
     if (ts.has('notas_semana') || ts.has('perfiles')) pintarNotas();
   });

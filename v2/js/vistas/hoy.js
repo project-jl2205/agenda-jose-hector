@@ -1,13 +1,13 @@
-// HOY (v2 Fluido) — el Día de siempre (tareas con y sin hora, repeticiones, mercado y setups del día,
-// jornada, bandeja, comentarios, filtros) con la cara de la demo Fluido: cuenta atrás de lo siguiente,
+// HOY (v2 Fluido) — el Día de siempre (tareas con y sin hora, repeticiones, jornada, comentarios, filtros)
+// con la cara de la demo Fluido: cuenta atrás de lo siguiente,
 // barra del día, tira de la semana con gota y línea del día. Cambiar de día no recarga la página: la
 // gota se desliza y la línea se repinta (la dirección #/dia/AAAA-MM-DD se actualiza igual).
+// 8-nov (decisión de Jose Luis): sin la bandeja ni los apuntes de Mercado; Hoy es una sola columna centrada.
 
 import { el, chip, avatar, error, reemplazar, modal } from '../../../js/ui.js';
 import { ocurrencias, claveOcurrencia, describir } from '../../../js/recurrencia.js';
 import { editarTarea } from '../../../js/vistas/tarea-editor.js';
 import { hiloComentarios } from '../../../js/vistas/comentarios.js';
-import { estadoSetup } from '../../../js/resultado.js';
 import { Muelle, entrada } from '../motor.js';
 
 const FILTRO = 'agenda-jh-filtro-dia';
@@ -56,17 +56,8 @@ export function montar(cont, ctx) {
   const barraDias = el('div', { class: 'dias-fila' });
   const filtros = el('div', { class: 'filtros-dia' });
   const linea = el('div', { class: 'card linea' });
-  const bandeja = el('div', { class: 'bandeja-l' });
-  const nuevaBandeja = el('input', { class: 't-in', placeholder: 'Apuntar en la bandeja…', enterkeyhint: 'done',
-    onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); aBandeja(); } } });
   cont.append(el('div', { class: 'hoy-rejilla' },
-    el('div', { class: 'hoy-main' }, cuenta, barraDias, filtros, linea),
-    el('aside', { class: 'hoy-lado' },
-      el('div', { class: 'card bandeja' },
-        el('div', { class: 'etq' }, 'Bandeja'),
-        el('label', { class: 't-nueva' }, el('span', { class: 'mas' }, '+'), nuevaBandeja),
-        bandeja,
-        el('p', { class: 'nota-lado' }, 'Lo que no tiene día. «Programar» le pone fecha y hora.')))));
+    el('div', { class: 'hoy-main' }, cuenta, barraDias, filtros, linea)));
 
   // ---- acciones ----
   async function alternar(t, d, nodo) {
@@ -85,13 +76,6 @@ export function montar(cont, ctx) {
         } catch (e) { error(e); }
       });
     } catch (e) { error(e); }
-  }
-  async function aBandeja() {
-    const titulo = nuevaBandeja.value.trim();
-    if (!titulo) return nuevaBandeja.focus();
-    nuevaBandeja.value = '';
-    try { await store.insertar('tareas', { titulo, tipo: 'puntual', creado_por: store.usuarioId(), orden: 0 }); avisar('A la bandeja', titulo.length > 24 ? '' : titulo, 'var(--azul)'); }
-    catch (e) { nuevaBandeja.value = titulo; error(e); }
   }
   function horaPropuesta() {
     const inicio = F.horaCorta(store.usuario()?.jornada_inicio || '09:00');
@@ -244,47 +228,24 @@ export function montar(cont, ctx) {
     });
     return nodo;
   }
-  function filaEvento(it) {
-    if (it.tipo === 'anotacion') {
-      const a = it.a;
-      return el('a', { class: 'ev evento', href: '#/mercado', style: { '--c': '#ffd60a' }, title: 'Ver en Mercado' },
-        el('div', { class: 'hr' }, hhmm(it.min)), el('span', { class: 'bar rombo' }),
-        el('div', { class: 'ev-c' }, el('b', {}, a.titulo),
-          el('small', { class: 'ev-meta' }, el('span', { class: 'tipo-ev' }, 'Mercado'), el('span', {}, '★'.repeat(a.importancia)),
-            !a.despues && new Date(a.fecha_hora) < new Date() && el('span', { class: 'falta' }, 'falta el después'))),
-        el('div', { class: 'ev-d' }, botonComentarios('anotacion', a.id, a.titulo)));
-    }
-    const s = it.s;
-    const est = estadoSetup(s);
-    return el('a', { class: 'ev evento', href: `#/setups/${s.id}`, style: { '--c': '#bf5af2' }, title: 'Ver el setup' },
-      el('div', { class: 'hr' }, hhmm(it.min)), el('span', { class: 'bar rombo' }),
-      el('div', { class: 'ev-c' }, el('b', {}, `${s.simbolo} · ${s.direccion === 'largo' ? '↑ largo' : '↓ corto'} · ${s.temporalidad}`),
-        el('small', { class: 'ev-meta' }, el('span', { class: 'tipo-ev' }, 'Setup'), el('span', { class: `estado-mini e-${est.clave}` }, est.texto))),
-      el('div', { class: 'ev-d' }, botonComentarios('setup', s.id, `${s.simbolo} ${s.temporalidad}`)));
-  }
   function pintarLinea(animar) {
     const ts = tareasDelDia(dia);
     const sin = ts.filter(t => !t.hora).sort((a, b) => a.titulo.localeCompare(b.titulo));
     const conHora = ts.filter(t => t.hora).map(t => ({ tipo: 'tarea', min: F.minutosDe(t.hora), t }));
-    const desdeMs = F.madridAInstante(dia, '00:00').getTime();
-    const hastaMs = F.madridAInstante(F.sumarDias(dia, 1), '00:00').getTime();
-    const enDia = iso => { const x = new Date(iso).getTime(); return x >= desdeMs && x < hastaMs; };
-    const anot = store.vivas('anotaciones', a => enDia(a.fecha_hora)).map(a => ({ tipo: 'anotacion', min: F.minutosDe(F.fmtHora(a.fecha_hora)), a }));
-    const sets = [];   // «Solo operaciones» (decisión de Jose Luis, 7-nov): los setups planificados ya no salen en la v2
     const q = quienJornada();
     const jornada = [];
     if (q) {
       jornada.push({ tipo: 'jornada', min: F.minutosDe(q.jornada_inicio || '09:00'), texto: `☀ Inicio de jornada${filtro.persona ? ' · ' + q.nombre : ''} · ${F.horaCorta(q.jornada_inicio || '09:00')}` });
       if (q.jornada_fin) jornada.push({ tipo: 'jornada', min: F.minutosDe(q.jornada_fin), texto: `☾ Fin de jornada · ${F.horaCorta(q.jornada_fin)}` });
     }
-    const items = [...conHora, ...anot, ...sets, ...jornada].sort((x, y) => x.min - y.min || (x.tipo === 'jornada' ? -1 : 1));
+    const items = [...conHora, ...jornada].sort((x, y) => x.min - y.min || (x.tipo === 'jornada' ? -1 : 1));
     const ahora = esHoy() ? F.minutosDe(F.horaDe(new Date())) : null;
     const nodos = [];
     if (sin.length) nodos.push(el('div', { class: 'lin-cab' }, 'Sin hora'), ...sin.map(t => filaTarea(t, false)), el('div', { class: 'lin-cab' }, 'Con hora'));
     let puesto = !esHoy();
     for (const it of items) {
       if (!puesto && it.min > ahora) { nodos.push(el('div', { class: 'ahora' }, F.horaDe(new Date()))); puesto = true; }
-      nodos.push(it.tipo === 'tarea' ? filaTarea(it.t, true) : it.tipo === 'jornada' ? el('div', { class: 'jornada' }, it.texto) : filaEvento(it));
+      nodos.push(it.tipo === 'tarea' ? filaTarea(it.t, true) : el('div', { class: 'jornada' }, it.texto));
     }
     if (!puesto) nodos.push(el('div', { class: 'ahora' }, F.horaDe(new Date())));
     const hayAlgo = sin.length || items.some(i => i.tipo !== 'jornada');
@@ -293,41 +254,15 @@ export function montar(cont, ctx) {
     if (animar) entrada(linea.querySelectorAll('.ev'), { dy: 10, paso: 22 });
   }
 
-  // ---- bandeja ----
-  function pintarBandeja() {
-    const ts = store.vivas('tareas', t => !t.fecha && !t.grupo_id && !t.rrule && pasaFiltro(t))
-      .sort((a, b) => (a.prioridad === 'URGENTE' ? -1 : 0) - (b.prioridad === 'URGENTE' ? -1 : 0) || (b.creado_en || '').localeCompare(a.creado_en || ''));
-    const pendientes = ts.filter(t => !store.hecha(t.id));
-    const hechas = ts.filter(t => store.hecha(t.id));
-    const fila = t => {
-      const h = store.hecha(t.id);
-      const etiquetas = (t.etiquetas || []).map(id => store.fila('etiquetas', id)).filter(Boolean);
-      const n = el('div', { class: `t ${h ? 'h' : ''}`, style: { '--c': colorDe(t) } },
-        svgEn('span', { class: 'ck', role: 'button', title: h ? 'Desmarcar' : 'Marcar como hecha' }, CK),
-        el('div', { class: 'tx', title: 'Clic para editar' }, el('span', {}, t.titulo), ' ', ...etiquetas.map(e => chip(e.nombre, e.color))),
-        !h && el('button', { class: 'prog', title: 'Ponerle día y hora' }, 'Programar'));
-      n.addEventListener('click', ev => {
-        if (ev.target.closest('.ck')) return alternar(t, dia, n);
-        if (ev.target.closest('.prog')) return editarTarea({ ...t, fecha: dia }).catch(error);
-        editarTarea(t).catch(error);
-      });
-      return n;
-    };
-    reemplazar(bandeja,
-      pendientes.length ? el('div', { class: 'lista-b' }, pendientes.map(fila)) : el('div', { class: 'vacio-b' }, 'Bandeja vacía.'),
-      hechas.length ? el('details', { class: 'hechas-b' }, el('summary', {}, `${hechas.length} hecha${hechas.length === 1 ? '' : 's'}`), el('div', { class: 'lista-b' }, hechas.map(fila))) : null);
-  }
-
-  function pintar() { pintarCuenta(); pintarDias(); pintarFiltros(); pintarLinea(false); pintarBandeja(); }
-  pintarCuenta(); pintarDias(); pintarFiltros(); pintarLinea(true); pintarBandeja();
-  const quitar = store.on(['tareas', 'tareas_hechas', 'etiquetas', 'grupos', 'anotaciones', 'setups', 'perfiles', 'comentarios'], ts => {
+  function pintar() { pintarCuenta(); pintarDias(); pintarFiltros(); pintarLinea(false); }
+  pintarCuenta(); pintarDias(); pintarFiltros(); pintarLinea(true);
+  const quitar = store.on(['tareas', 'tareas_hechas', 'etiquetas', 'grupos', 'perfiles', 'comentarios'], ts => {
     pintarCuenta();
     // la tira solo cambia de cuentas: se repintan los contadores sin mover la gota
     const dias = F.diasDeSemana(F.semanaISO(dia));
     botonesDia.forEach((b, i) => { const lista = tareasDelDia(dias[i]); b.querySelector('.cnt').textContent = lista.length ? `${lista.filter(t => hechaEn(t, dias[i])).length}/${lista.length}` : '·'; });
     if (ts.has('perfiles') || ts.has('etiquetas')) pintarFiltros();
     pintarLinea(false);
-    pintarBandeja();
   });
   const reloj = setInterval(() => { if (esHoy()) { pintarCuenta(); pintarLinea(false); } }, 60000);
   const alCambiarTam = () => colocarGota(true);
