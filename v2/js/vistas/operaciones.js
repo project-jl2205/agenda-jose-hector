@@ -112,6 +112,14 @@ const OPS = () => ST.vivas('operaciones').map(aOp).sort((a, b) => (b.t_salida ||
 const borradasMias = () => ST.filas('operaciones', f => !!f.borrado_en && f.autor === YO());
 const nombreDe = id => ST.perfiles().find(p => p.id === id)?.nombre || '';
 const otro = () => ST.perfiles().find(p => p.id !== YO())?.nombre || 'el otro';
+// de quién es cada operación (9-nov, lo pidió Jose: ahora también publica Héctor): su inicial y su color, como en el resto
+const perfilDe = id => ST.perfiles().find(p => p.id === id);
+const colorDe = id => { const c = perfilDe(id)?.color; return /^#[0-9a-f]{6}$/i.test(c || '') ? c : '#6b6b8a'; };
+const inicialDe = id => (nombreDe(id) || '?').trim().charAt(0).toUpperCase();
+const autorHTML = (id, cls = 'op-autor') => `<span class="${cls}" style="--c:${colorDe(id)}"><i>${e(inicialDe(id))}</i>${e(nombreDe(id) || '—')}</span>`;
+const CLAVE_QUIEN = 'agenda-jh-ops-quien';                 // filtro de arriba, por aparato ('' = las de los dos)
+let quien = (() => { try { return localStorage.getItem(CLAVE_QUIEN) || ''; } catch { return ''; } })();
+const opsVistas = () => OPS().filter(o => !quien || o.autor === quien);
 
 /* ---- enlaces firmados de las capturas y las velas (1 h; se piden de golpe y se guardan mientras valen) ---- */
 const URLS = new Map();
@@ -562,21 +570,34 @@ function pintarGrafico(v, o, VD) {
 let carpetaSel = null;                                // símbolo (base) abierto; se recuerda al volver a la pestaña
 function porCarpeta() {
   const m = new Map();
-  for (const o of OPS()) { const i = infoSim(o.s); if (!m.has(i.b)) m.set(i.b, { ...i, ops: [] }); m.get(i.b).ops.push(o); }
+  for (const o of opsVistas()) { const i = infoSim(o.s); if (!m.has(i.b)) m.set(i.b, { ...i, ops: [] }); m.get(i.b).ops.push(o); }
   return m;
 }
 const sumaOps = L => { const gan = L.filter(o => (o.resultado || 0) > 0).length;
   return { n: L.length, net: L.reduce((a, o) => a + (o.resultado || 0), 0), wr: L.length ? Math.round(gan / L.length * 100) : 0, r: L.reduce((a, o) => a + (o.r || 0), 0), mon: L[0]?.moneda }; };
 const totHTML = (s, conN) => `<div class="ops-tot">${conN ? `<span><b>${s.n}</b>operaci${s.n === 1 ? 'ón' : 'ones'}</span>` : ''}<span><b class="${s.net >= 0 ? 'pos' : 'neg'}">${fDin(s.net, s.mon)}</b>resultado</span><span><b>${s.wr}%</b>ganadoras</span><span><b>${s.r > 0 ? '+' : ''}${fmt(s.r, 2)}R</b>en total</span></div>`;
+function quienHTML(todas) {
+  const ps = ST.perfiles(); if (ps.length < 2) return '';
+  const n = id => todas.filter(o => !id || o.autor === id).length;
+  return `<div class="ops-quien" role="group" aria-label="De quién son">${[['', 'Todas'], ...ps.map(p => [p.id, p.nombre])].map(([id, nom]) =>
+    `<button class="${id === quien ? 'on' : ''}" data-quien="${e(id)}">${id ? `<i style="--c:${colorDe(id)}">${e(inicialDe(id))}</i>` : ''}${e(nom)}<small>${n(id)}</small></button>`).join('')}</div>`;
+}
+function quienesHTML(L) {                              // en la carpeta: quién tiene operaciones dentro
+  const m = new Map(); L.forEach(o => m.set(o.autor, (m.get(o.autor) || 0) + 1));
+  return `<span class="cp-quien" title="${e([...m].map(([id, k]) => `${nombreDe(id) || '—'}: ${k}`).join(' · '))}">${[...m.keys()].map(id => `<i style="--c:${colorDe(id)}">${e(inicialDe(id))}</i>`).join('')}</span>`;
+}
 function opsHTML() {
-  const L = OPS(), borr = borradasMias().length;
+  if (quien && !perfilDe(quien)) quien = '';
+  const todas = OPS(), L = opsVistas(), borr = borradasMias().length;
   const recup = borr ? `<button class="pastilla recup" data-recuperar="1">Recuperar ${borr} borrada${borr === 1 ? '' : 's'}</button>` : '';
+  if (todas.length && !L.length) return `<div class="card big ops-cab"><div class="etq">Setups · operaciones publicadas</div><h2>${e(nombreDe(quien))} aún no ha publicado ninguna</h2>
+      ${quienHTML(todas)}</div>`;
   if (!L.length) return `<div class="card libre-ops"><b>${borr ? 'No queda ninguna operación' : 'Aún no hay operaciones publicadas'}</b>En el Terminal: <b>Diario</b> → abre una operación → <b>Publicar en la agenda</b>. Aparece aquí sola.${borr ? `<br><span style="display:inline-block;margin-top:14px">${recup}</span>` : ''}</div>`;
   const C = porCarpeta();
   if (carpetaSel && !C.has(carpetaSel)) carpetaSel = null;
   if (carpetaSel) return carpetaHTML(C.get(carpetaSel));
   return `<div class="card big ops-cab"><div class="etq">Setups · operaciones publicadas</div><h2>${L.length} operaci${L.length === 1 ? 'ón' : 'ones'} en ${C.size} carpeta${C.size === 1 ? '' : 's'}</h2>
-      ${totHTML(sumaOps(L))}${recup}</div>
+      ${totHTML(sumaOps(L))}${recup}${quienHTML(todas)}</div>
     ${GRUPOS_OPS.map(([k, n]) => { const cs = [...C.values()].filter(c => c.g === k); if (!cs.length) return ''; const s = sumaOps(cs.flatMap(c => c.ops));
       return `<section class="ops-grupo"><h3>${n}<small>${cs.length} carpeta${cs.length === 1 ? '' : 's'} · ${s.n} op.</small><span class="${s.net >= 0 ? 'pos' : 'neg'}">${fDin(s.net, s.mon)}</span></h3>
         <div class="carpetas">${cs.map(carpetaTile).join('')}</div></section>`; }).join('')}`;
@@ -586,7 +607,7 @@ function carpetaTile(c) {
   return `<button class="carpeta" data-carp="${e(c.b)}" style="--c:${c.c}" aria-label="Abrir la carpeta ${e(c.b)}">
     <span class="cp-atras"></span>
     <span class="cp-hojas">${caps.map((o, i) => imgOp(o).replace('<img ', `<img style="--i:${caps.length - 1 - i}" `)).join('') || '<i></i>'}</span>
-    <span class="cp-frente">${logoSim(c.b, 44)}<span class="cp-nom"><b>${e(c.b)}</b><small>${s.n} op. · ${s.wr}%<span class="cp-gan"> ganadoras</span></small></span>
+    <span class="cp-frente">${logoSim(c.b, 44)}<span class="cp-nom"><b>${e(c.b)}</b><small>${s.n} op. · ${s.wr}%<span class="cp-gan"> ganadoras</span></small></span>${quienesHTML(c.ops)}
       <span class="cp-pie"><span class="cp-rastro">${c.ops.slice(0, 14).reverse().map(o => `<i class="${(o.resultado || 0) >= 0 ? 'pos' : 'neg'}"></i>`).join('')}</span><span class="cp-res ${s.net >= 0 ? 'pos' : 'neg'}">${fDin(s.net, s.mon)}</span></span></span></button>`;
 }
 function carpetaHTML(c) {
@@ -598,6 +619,7 @@ function carpetaHTML(c) {
 function opCardHTML(o) {
   const lar = o.dir === 'largo', pos = (o.resultado || 0) >= 0, k = o.k, mia = o.autor === YO(), n = nDibujos(k);
   return `<div class="card op" data-op="${e(k)}"><div class="op-img" ${o.captura || o.velas ? `data-verop="${e(k)}"` : ''}>${o.captura ? imgOp(o, 'Captura de la operación') : `<span class="op-sin">${o.velas ? 'sin captura · abre el gráfico' : 'sin captura'}</span>`}
+      ${autorHTML(o.autor)}
       ${o.velas ? `<span class="op-mov"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l-6 6 6 6M15 6l6 6-6 6"/></svg>Gráfico<b class="op-ndib">${n ? `· ✎ ${n}` : ''}</b></span>` : ''}
       <span class="op-res ${pos ? 'pos' : 'neg'}">${o.r != null ? fmt(o.r, 2) + 'R · ' : ''}${fDin(o.resultado, o.moneda)}</span>
       ${mia ? `<button class="op-del" data-delop="${e(k)}" title="Borrar la operación" aria-label="Borrar la operación">${PAPELERA}<span>¿Borrar?</span></button>` : ''}</div>
@@ -617,7 +639,7 @@ async function verOperacion(k) {
   const lar = o.dir === 'largo', pos = (o.resultado || 0) >= 0, conG = !!o.velas, conC = !!o.captura;
   const v = document.createElement('div'); v.className = 'visor-op';
   v.innerHTML = `<div class="vo-caja" role="dialog" aria-label="Operación ${e(o.s)}"><div class="vo-cab">${logoSim(o.s, 40)}
-      <div class="vo-tit"><b>${e(baseSim(o.s))}<span class="dir" style="--c:${lar ? 'var(--ok)' : 'var(--mal)'}">${lar ? '↑ Largo' : '↓ Corto'}</span><span class="vo-res ${pos ? 'pos' : 'neg'}">${fDin(o.resultado, o.moneda)}</span></b>
+      <div class="vo-tit"><b>${e(baseSim(o.s))}<span class="dir" style="--c:${lar ? 'var(--ok)' : 'var(--mal)'}">${lar ? '↑ Largo' : '↓ Corto'}</span><span class="vo-res ${pos ? 'pos' : 'neg'}">${fDin(o.resultado, o.moneda)}</span>${autorHTML(o.autor, 'vo-autor')}</b>
         <small>${fCuando(o.t_entrada)}${o.t_salida ? ' → ' + fCuando(o.t_salida, false) : ''} · entrada ${fNum(o.entrada)}${o.salida != null ? ' · salida ' + fNum(o.salida) : ''}</small></div>
       ${conG && conC ? '<div class="vo-seg"><button data-vom="graf" class="on">Gráfico</button><button data-vom="cap">Captura</button></div>' : ''}
       <button class="redondo" data-vocerrar="1" aria-label="Cerrar">×</button></div>
@@ -704,6 +726,8 @@ export function montar(cont, ctx) {
     if (ev.target.closest('[data-carpvolver]')) return cerrarCarpeta();
     const v = ev.target.closest('[data-verop]'); if (v) return verOperacion(v.dataset.verop);
     if (ev.target.closest('[data-recuperar]')) return recuperarOps();
+    const q = ev.target.closest('[data-quien]');
+    if (q) { quien = q.dataset.quien; try { localStorage.setItem(CLAVE_QUIEN, quien); } catch { /* nada */ } return pintar(); }
   };
   raiz.addEventListener('click', alClic);
   // con el visor abierto, las teclas son suyas (dibujos primero; Esc lo cierra; los números no cambian de pestaña por debajo).
