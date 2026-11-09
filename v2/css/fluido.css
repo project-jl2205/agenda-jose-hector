@@ -867,6 +867,13 @@ button.comp.on{opacity:1;border-color:color-mix(in srgb,var(--c) 55%,transparent
 .ses-f:hover .ses-x,.ses-x:focus-visible{opacity:1}.ses-x:hover{background:#ffffff14;color:var(--txt)}
 @media(hover:none){.ses-x{opacity:1}}
 .ses-vacio{color:var(--tenue);font-size:13px;margin:10px 0 0}
+/* peso de cada sesión y «Seguir en una nueva» (SQL 008, ficha 0003; 9-nov) */
+.ses-peso{font-size:11px;font-weight:700;padding:1px 8px;border-radius:99px;background:#ffffff10;color:var(--sub);font-variant-numeric:tabular-nums}
+.ses-peso.pesada{background:#ff9f0a22;color:#ffb340}
+.ses-nueva{display:inline-flex;align-items:center;padding:6px 12px;border-radius:99px;background:transparent;border:1px solid #ffffff2a;color:var(--txt);font:inherit;font-weight:600;font-size:13px;text-decoration:none;cursor:pointer;white-space:nowrap;margin-right:2px}
+.ses-nueva:hover{background:#ffffff12}
+.ses-nueva[disabled]{color:var(--tenue);border-color:#ffffff14;background:transparent;cursor:default}
+.ses-aviso{margin:12px 0 0;padding-top:10px;border-top:1px solid var(--borde);font-size:12px;line-height:1.4;color:#ffb340}
 @media(max-width:820px){.ses{padding:14px 16px!important}.ses-sub{flex-basis:100%;text-align:left}.ses-f{grid-template-columns:minmax(0,1fr)}.ses-a{justify-content:flex-end}}
 
 /* ---------- Setups: de quién es cada operación (9-nov) ---------- */

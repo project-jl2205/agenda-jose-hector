@@ -401,27 +401,28 @@ function semillas() {
 
 // sesiones de Claude DE EJEMPLO (SQL 007; las de verdad las sube el PC de cada uno al acabar cada turno de Claude): títulos y
 // textos INVENTADOS, porque este código es público. De ayer, de hoy y de hace unos días; una ficha que espera el OK, una de
-// Héctor (Jose no la ve: es privada) y una ya quitada de Hoy.
+// Héctor (Jose no la ve: es privada) y una ya quitada de Hoy. Los pesos (contexto, SQL 008) también son inventados: dos pasan
+// de 200k (la de hoy y la de hace 3 días) para ver el aviso.
 function sesionesDemo(perfiles) {
   const J = perfiles.find(p => p.email === 'jose@demo')?.id, H = perfiles.find(p => p.email === 'hector@demo')?.id;
   if (!J) return [];
   const hace = h => new Date(Date.now() - h * 36e5).toISOString();
   const ayer = h => { const d = new Date(); d.setDate(d.getDate() - 1); d.setHours(h, 15, 0, 0); return d.toISOString(); };
   const s = (n, o) => ({ id: `s-00000000-0000-4000-8000-${String(n).padStart(12, '0')}`, dueno: J, tipo: 'sesion', grupo: null, grupo_orden: null,
-    estado: null, ultimo_pedido: null, ultima_respuesta: null, pendiente: null, prompt: null, mensajes: 0, primera_en: null, quitada_en: null,
+    estado: null, ultimo_pedido: null, ultima_respuesta: null, pendiente: null, prompt: null, mensajes: 0, primera_en: null, quitada_en: null, contexto: null,
     actualizado_en: hace(0.1), ...o });
   return [
-    s(1, { titulo: 'Bot de ejemplo: examen fuera de muestra', grupo: 'BOT TERMINAL', grupo_orden: 0, ultima_en: hace(0.5),
+    s(1, { titulo: 'Bot de ejemplo: examen fuera de muestra', grupo: 'BOT TERMINAL', grupo_orden: 0, ultima_en: hace(0.5), contexto: 412000,
       ultimo_pedido: 'pásale el examen con los datos del año pasado', ultima_respuesta: 'Hecho: aprueba fuera de muestra. Falta probarlo unos días en papel.' }),
-    s(2, { titulo: 'Agenda de ejemplo: pestaña nueva', grupo: 'AGENDA', grupo_orden: 1, ultima_en: ayer(22),
+    s(2, { titulo: 'Agenda de ejemplo: pestaña nueva', grupo: 'AGENDA', grupo_orden: 1, ultima_en: ayer(22), contexto: 58300,
       ultimo_pedido: 'que quede centrado', ultima_respuesta: 'Centrado. Lo he probado en el PC y en el móvil.' }),
-    s(3, { titulo: 'Mapa de liquidez de ejemplo', grupo: 'MAPA LIQUIDEZ', grupo_orden: 2, ultima_en: hace(24 * 3),
+    s(3, { titulo: 'Mapa de liquidez de ejemplo', grupo: 'MAPA LIQUIDEZ', grupo_orden: 2, ultima_en: hace(24 * 3), contexto: 1250000,
       ultimo_pedido: 'pon el buscador a la derecha', ultima_respuesta: 'Puesto; falta que me digas si te gusta el tamaño.' }),
-    s(4, { titulo: 'Sesión suelta de ejemplo', ultima_en: ayer(11), ultimo_pedido: 'revisa el histórico del calendario',
+    s(4, { titulo: 'Sesión suelta de ejemplo', ultima_en: ayer(11), contexto: 23400, ultimo_pedido: 'revisa el histórico del calendario',
       ultima_respuesta: 'Revisado: no falta ningún día.' }),
-    s(5, { titulo: 'Sesión ya quitada de Hoy', grupo: 'AGENDA', grupo_orden: 1, ultima_en: hace(5), quitada_en: hace(4),
+    s(5, { titulo: 'Sesión ya quitada de Hoy', grupo: 'AGENDA', grupo_orden: 1, ultima_en: hace(5), quitada_en: hace(4), contexto: 300000,
       ultimo_pedido: 'nada más', ultima_respuesta: 'Vale.' }),
-    ...(H ? [s(6, { dueno: H, titulo: 'Sesión de Héctor (Jose no la ve)', grupo: 'AGENDA', grupo_orden: 0, ultima_en: hace(1),
+    ...(H ? [s(6, { dueno: H, titulo: 'Sesión de Héctor (Jose no la ve)', grupo: 'AGENDA', grupo_orden: 0, ultima_en: hace(1), contexto: 130000,
       ultimo_pedido: 'mira mis setups', ultima_respuesta: 'Mirados.' })] : []),
     s(7, { id: 'f-0001', tipo: 'ficha', titulo: 'Ficha de ejemplo: arrancar algo al encender el PC', grupo: 'AGENDA', grupo_orden: 1,
       estado: 'esperando-ok', ultima_en: hace(3), pendiente: 'Falta tu sí para instalar la tarea que lo arranca al encender el PC.',

@@ -29,7 +29,8 @@ Este repositorio es **solo la web** (GitHub Pages, público). Los datos viven en
     código (este repositorio es público). En la demo hay fichas de ejemplo.
   - Sesiones de Claude (`sesiones_claude`, «Claude · tus sesiones» arriba en Hoy): PRIVADAS, cada uno ve solo las suyas. Las
     sube el PC de cada uno (no la web); desde la web su dueño solo puede «quitarla de Hoy» (`quitada_en`). En la demo, solo
-    sesiones INVENTADAS: nunca títulos ni textos de sesiones reales.
+    sesiones INVENTADAS: nunca títulos ni textos de sesiones reales. Desde el SQL 008 llevan su PESO (`contexto`, tokens; la web
+    avisa por encima de 200k) y «Seguir en una nueva» (pestaña nueva de Claude con un prompt corto, sin historial; solo en el PC).
   - Si la base rechaza un cambio, `db.js` lo convierte en error para que la pantalla lo deshaga (no se queda «hecho»).
 - **Cambios en el modelo de datos** (tablas/columnas/permisos): se preparan como SQL numerado (en el PC de Jose Luis,
   `sistema/agenda/sql/NNN_….sql`) y la web se publica DESPUÉS de aplicarlo. `js/store.js` es de las dos versiones: una

@@ -261,7 +261,16 @@ export function montar(cont, ctx) {
   // ---- Claude · tus sesiones (SQL 007, ficha 0002) — arriba; solo el día de hoy y solo las tuyas (la base no da las del otro) ----
   // Las sube tu PC al acabar cada turno de Claude (herramientas/sesiones_claude.py). «Continuar» reabre esa sesión en Claude
   // (solo en el PC; las fichas, con su prompt); «×» la quita de Hoy y vuelve a salir si la sesión se mueve.
+  // 9-nov, ficha 0003 (SQL 008): el PESO de cada sesión (tokens de contexto, «909k»); por encima de 200k, aviso: retomarla tras
+  // más de 1 h parada vuelve a cargarlo todo (la caché ya caducó). «Seguir en una nueva» abre una pestaña NUEVA de Claude con
+  // un resumen corto (título, lo último que pediste, lo último que contestó y el id de la vieja), sin su historial.
   const SES_SEMANA = 'agenda-jh-ses-semana', SES_PLEGADA = 'agenda-jh-ses-plegada', SES_DEST = 'agenda-jh-destino';
+  const PESADA = 200000;
+  const pesoCorto = n => {                                   // 909123 → «909k», 1250000 → «1,3M» (igual que sesiones_claude.py)
+    if (n >= 999500) { const d = Math.floor(n / 1e5 + 0.5); return `${Math.floor(d / 10)}${d % 10 ? ',' + (d % 10) : ''}M`; }
+    return n >= 1000 ? `${Math.floor(n / 1000 + 0.5)}k` : String(n);
+  };
+  const conPeso = s => s.tipo === 'sesion' && Number.isFinite(s.contexto) && s.contexto > 0;
   const SES_ESTADOS = { 'esperando-ok': 'espera tu OK', 'en-curso': 'en curso', bloqueada: 'bloqueada', pendiente: 'pendiente', hecha: 'hecha' };
   const leerLS = (k, d = '') => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
   const ponerLS = (k, v) => { try { localStorage.setItem(k, v); } catch { /* nada */ } };
@@ -273,11 +282,23 @@ export function montar(cont, ctx) {
     if (d === F.sumarDias(F.hoy(), -1)) return `ayer ${h}`;
     return `${F.NOMBRES_DIA[F.diaSemana(d) - 1].toLowerCase()} ${+d.slice(8)} · ${h}`;
   };
+  const destSes = () => (['antigravity-ide', 'antigravity', 'vscode'].includes(leerLS(SES_DEST)) ? leerLS(SES_DEST) : 'antigravity-ide');
   function enlaceSes(s) {
-    const dest = ['antigravity-ide', 'antigravity', 'vscode'].includes(leerLS(SES_DEST)) ? leerLS(SES_DEST) : 'antigravity-ide';
+    const dest = destSes();
     return s.tipo === 'ficha' ? `${dest}://anthropic.claude-code/open?prompt=${encodeURIComponent(s.prompt || '')}`
       : `${dest}://anthropic.claude-code/open?session=${encodeURIComponent(s.id.slice(2))}`;
   }
+  // «Seguir en una nueva»: el prompt corto, sin IA, con lo que ya trae la fila (sin claves: el PC las quita al subir)
+  function promptNueva(s) {
+    return [
+      `Seguimos en una sesión NUEVA lo de «${s.titulo}».`,
+      s.ultimo_pedido && `- Lo último que pedí: ${s.ultimo_pedido}`,
+      s.ultima_respuesta && `- Lo último que contestaste: ${s.ultima_respuesta}`,
+      `- Sesión anterior: ${s.id.slice(2)}. No cargues su historial; si te falta un detalle, búscalo en su .jsonl con Grep, sin leerlo entero.`,
+      'Dime en una línea dónde lo dejamos y sigue desde ahí.',
+    ].filter(Boolean).join('\n');
+  }
+  const enlaceNueva = s => `${destSes()}://anthropic.claude-code/open?prompt=${encodeURIComponent(promptNueva(s))}`;
   async function quitarSes(s) {
     try {
       await store.actualizar('sesiones_claude', { id: s.id }, { quitada_en: new Date().toISOString() });
@@ -293,16 +314,29 @@ export function montar(cont, ctx) {
         onclick: () => avisar(s.tipo === 'ficha' ? 'Abriendo la ficha en Claude' : 'Abriendo la sesión en Claude', '↗', 'var(--azul)') }, 'Continuar')
       : el('button', { class: 'ses-ir', type: 'button', title: 'Solo en el PC' }, enPC() ? 'Continuar' : 'solo en el PC');
     if (!puede) ir.disabled = true;
+    let nueva = null;                                        // las fichas ya abren una pestaña nueva con su prompt
+    if (s.tipo === 'sesion') {
+      nueva = enPC()
+        ? el('a', { class: 'ses-nueva', href: enlaceNueva(s),
+          title: 'Abre una pestaña NUEVA de Claude con un resumen corto (título, lo último que pediste, lo último que contestó y el id de esta sesión), sin cargar su historial',
+          onclick: () => avisar('Abriendo una sesión nueva de Claude', '↗', 'var(--azul)') }, 'Seguir en una nueva')
+        : el('button', { class: 'ses-nueva', type: 'button', title: 'Solo en el PC' }, 'Seguir en una nueva');
+      if (!enPC()) nueva.disabled = true;
+    }
+    const pesada = conPeso(s) && s.contexto > PESADA;
+    const peso = conPeso(s) ? el('span', { class: `ses-peso${pesada ? ' pesada' : ''}`,
+      title: `Peso: ${s.contexto.toLocaleString('es-ES')} tokens de contexto${pesada ? '. Retomarla tras más de 1 h parada vuelve a cargarlos todos: mejor «Seguir en una nueva»' : ''}` },
+    `${pesada ? '⚠ ' : ''}${pesoCorto(s.contexto)}`) : null;
     const linea = (et, txt, cls = '') => (txt ? el('p', { class: `ses-l ${cls}` }, el('span', {}, et), txt) : null);
     const x = el('button', { class: 'ses-x', type: 'button', title: 'Quitar de Hoy (vuelve a salir si la sesión se mueve)', onclick: () => quitarSes(s) }, '×');
     return el('div', { class: `ses-f${s.tipo === 'ficha' ? ' ficha' : ''}`, dataset: { id: s.id } },
       el('div', { class: 'ses-t' },
         el('b', { title: s.titulo }, s.titulo),
-        el('small', { class: 'ses-meta' }, cuandoSes(s.ultima_en),
+        el('small', { class: 'ses-meta' }, cuandoSes(s.ultima_en), peso,
           s.tipo === 'ficha' ? el('span', { class: `ses-est e-${s.estado || 'pendiente'}` }, `ficha · ${SES_ESTADOS[s.estado] || s.estado || 'pendiente'}`) : null),
         s.tipo === 'ficha' ? linea('Pendiente: ', s.pendiente) : linea('Tú: ', s.ultimo_pedido),
         linea(s.tipo === 'ficha' ? 'Resultado: ' : 'Claude: ', s.ultima_respuesta, 'tenue')),
-      el('div', { class: 'ses-a' }, ir, x));
+      el('div', { class: 'ses-a' }, nueva, ir, x));
   }
   function pintarSesiones() {
     const hay = esHoy() && (!store.disponible || store.disponible('sesiones_claude'));
@@ -339,7 +373,10 @@ export function montar(cont, ctx) {
       plegada ? null : el('div', { class: 'ses-cuerpo' },
         lista.length ? null : el('p', { class: 'ses-vacio' }, 'Nada de ayer ni de hoy.'),
         esperan.length ? bloque('Esperando tu OK', esperan, 'ses-ok') : null,
-        ...[...grupos.entries()].sort((a, b) => a[1].orden - b[1].orden || a[0].localeCompare(b[0])).map(([g, { filas }]) => bloque(g, filas))));
+        ...[...grupos.entries()].sort((a, b) => a[1].orden - b[1].orden || a[0].localeCompare(b[0])).map(([g, { filas }]) => bloque(g, filas)),
+        lista.some(s => conPeso(s) && s.contexto > PESADA)
+          ? el('p', { class: 'ses-aviso' }, '⚠ Más de 200k de contexto: retomarla tras más de 1 h parada vuelve a cargarlo todo (la caché ya caducó). Mejor «Seguir en una nueva».')
+          : null));
   }
 
   function pintar() { pintarCuenta(); pintarDias(); pintarFiltros(); pintarLinea(false); pintarSesiones(); }
