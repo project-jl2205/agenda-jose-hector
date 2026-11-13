@@ -574,11 +574,13 @@ async function montarVista(nombre, params) {
   if (viejo && !QUIETO) {
     viejo.classList.add('saliendo');
     viejo.getAnimations().forEach(a => a.cancel());
-    viejo.animate([{ opacity: 1, transform: 'none', filter: 'blur(0)' },
-      { opacity: 0, transform: misma ? 'scale(.985)' : `translateX(${-dir * 50}px) scale(.97)`, filter: 'blur(10px)' }],
+    // 13-nov: sin filter:blur — desenfocar dos páginas enteras (con sus backdrop-filter dentro) daba tirones de ~100 ms al
+    // cambiar de pestaña en el PC y en el iPhone; el deslizamiento con fundido se queda igual
+    viejo.animate([{ opacity: 1, transform: 'none' },
+      { opacity: 0, transform: misma ? 'scale(.985)' : `translateX(${-dir * 50}px) scale(.97)` }],
     { duration: misma ? 180 : 240, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' }).onfinish = () => viejo.remove();
-    nueva.animate([{ opacity: 0, transform: misma ? 'scale(.985)' : `translateX(${dir * 70}px) scale(.98)`, filter: 'blur(10px)' },
-      { opacity: 1, transform: 'none', filter: 'blur(0)' }], { duration: DUR(), easing: EASE() });
+    nueva.animate([{ opacity: 0, transform: misma ? 'scale(.985)' : `translateX(${dir * 70}px) scale(.98)` },
+      { opacity: 1, transform: 'none' }], { duration: DUR(), easing: EASE() });
   } else viejo?.remove();
   if (!misma) window.scrollTo({ top: 0, behavior: QUIETO ? 'auto' : 'smooth' });
   if (antes && !misma) {

@@ -134,7 +134,7 @@ button.estado-p{cursor:pointer}
 .pt{background:#ffffff10;border-radius:99px}.pf{border-radius:99px}
 
 /* modal = hoja con muelle */
-.modal-bg{background:#000a;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);animation:veloIn .25s ease-out}
+.modal-bg{background:#000c;animation:veloIn .25s ease-out}  /* 13-nov: sin backdrop-filter (desenfocar la pantalla entera daba tirones al abrir) */
 @keyframes veloIn{from{opacity:0}}
 .modal{background:var(--card);border:1px solid #2a2a30;border-radius:28px;padding:24px 26px;box-shadow:0 40px 120px #000;animation:hojaIn var(--muelle-d) var(--muelle)}
 @keyframes hojaIn{from{opacity:0;transform:translateY(30px) scale(.94)}}
@@ -152,7 +152,7 @@ button.estado-p{cursor:pointer}
 .toast-undo{border-radius:99px;border:0;background:#ffffff1a;letter-spacing:0;font-size:12.5px;padding:5px 12px}
 @media(max-width:760px){.toast{left:50%;right:auto;bottom:calc(84px + env(safe-area-inset-bottom));max-width:calc(100vw - 24px)}}
 .aviso-version{border-radius:99px;border-color:#ffffff22;background:#0e0e10f2;top:62px;backdrop-filter:blur(20px);font-size:13.5px}
-.visor{background:#000e;backdrop-filter:blur(10px)}.visor img{border-radius:16px}
+.visor{background:#000e}.visor img{border-radius:16px}
 
 /* acceso */
 .acceso{min-height:100vh}
@@ -407,7 +407,7 @@ html.sin-tuto .tuto{display:none!important}
 .cd-mas{font-size:11px;color:var(--sub);font-weight:700}
 .cd-puntos{display:none}
 /* el día que se hincha */
-.velo{position:fixed;inset:0;background:#000a;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);z-index:70;opacity:0}
+.velo{position:fixed;inset:0;background:#000c;z-index:70;opacity:0}  /* 13-nov: sin backdrop-filter, ídem */
 .hd{position:fixed;z-index:71;background:var(--card);border:1px solid var(--borde);overflow:hidden;overflow:clip;touch-action:none;color:var(--txt)}
 .hd.marcado{border-color:color-mix(in srgb,var(--dc) 55%,var(--borde))}
 .hd.marcado::before{content:"";position:absolute;inset:0 0 auto;height:140px;background:linear-gradient(color-mix(in srgb,var(--dc) 20%,transparent),transparent);pointer-events:none}
@@ -583,7 +583,7 @@ body.escribiendo .nt-comp{bottom:0}
 .op-et{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.op-et span{padding:3px 9px;border-radius:99px;background:#ffffff10;color:var(--sub);font-size:12px;font-weight:600}
 .op-pie{margin-top:12px;font-size:12px;color:var(--tenue)}
 .libre-ops{padding:40px 24px;text-align:center;color:var(--sub);line-height:1.6}.libre-ops>b:first-child{display:block;color:var(--txt);font-size:20px;margin-bottom:6px}
-.visor-op{position:fixed;inset:0;z-index:80;background:#000d;backdrop-filter:blur(10px);display:grid;place-items:center;padding:20px;cursor:zoom-out}
+.visor-op{position:fixed;inset:0;z-index:80;background:#000d;display:grid;place-items:center;padding:20px;cursor:zoom-out}
 .visor-op img{max-width:100%;max-height:100%;border-radius:16px;box-shadow:0 30px 90px #000}
 .v-ops .logo,.visor-op .logo{width:var(--t);height:var(--t);flex-shrink:0;display:block;filter:drop-shadow(0 4px 10px #0008)}
 .v-ops .logo svg,.visor-op .logo svg{width:100%;height:100%;display:block;overflow:visible}
@@ -627,7 +627,7 @@ body.escribiendo .nt-comp{bottom:0}
 .op-del.seguro{background:var(--mal);color:#fff}.op-del.seguro span{display:inline}
 @media(hover:none){.op-del{opacity:.85}}
 /* visor de la operación */
-.visor-op{cursor:default;background:#000c;backdrop-filter:blur(12px);padding:24px}
+.visor-op{cursor:default;background:#000d;padding:24px}
 .vo-caja{width:min(1180px,100%);height:min(760px,100%);display:flex;flex-direction:column;background:var(--card);border:1px solid var(--borde);border-radius:26px;overflow:hidden;box-shadow:0 40px 120px #000}
 .vo-cab{display:flex;align-items:center;gap:12px;padding:14px 14px 12px 18px;border-bottom:1px solid var(--borde)}
 .vo-tit{min-width:0;flex:1}.vo-tit b{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:800;flex-wrap:wrap}
